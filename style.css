@@ -1,0 +1,79 @@
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Courier New', monospace;
+  background: #2b1b12;
+  color: #e0c9a6;
+}
+
+.view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  transition: opacity 1s;
+}
+
+.view:not(.active) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#enter-btn {
+  position: absolute;
+  bottom: 20%;
+  padding: 20px 40px;
+  font-size: 1.5em;
+  background: #8b5a2b;
+  color: white;
+  border: 3px solid #5c3a1f;
+  border-radius: 15px;
+  cursor: pointer;
+}
+
+#george-area {
+  position: relative;
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.george {
+  width: 80%;
+  max-width: 300px;
+  border-radius: 20px;
+  border: 5px solid #5c3a1f;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.8);
+}
+
+#roast-bubble {
+  background: rgba(0,0,0,0.8);
+  padding: 15px 25px;
+  border-radius: 20px;
+  margin-top: 15px;
+  border: 3px solid #8b5a2b;
+  font-size: 1.1em;
+  line-height: 1.4;
+}
+
+#games-menu {
+  margin-top: 30px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 15px;
+}
+
+#games-menu button {
+  padding: 15px 30px;
+  font-size: 1.2em;
+  background: #5c3a1f;
+  color: #e0c9a6;
+  border: 2px solid #8b5a2b;
+  border-radius: 10px;
+  cursor: pointer;
+}
