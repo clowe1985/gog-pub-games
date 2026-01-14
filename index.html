@@ -1,24 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>The Grumpy Old Git</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script> <!-- Telegram WebApp SDK -->
+
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
+
+  <!-- OUTSIDE VIEW -->
   <div id="view-outside" class="view active">
-    <img src="https://i.postimg.cc/8cSHy0Bq/outside.jpg" alt="The pub exterior">
+    <div
+      class="bg"
+      style="background-image: url('https://i.postimg.cc/SKdt6GpY/outside.png');"
+    ></div>
+
     <button id="enter-btn">Enter the Pub, you mug</button>
   </div>
 
+  <!-- INSIDE VIEW -->
   <div id="view-inside" class="view">
-    <div id="george-area">
-    <img src="https://i.postimg.cc/KYWp5fH6/george-png.jpg" alt="George" class="george">
-    <div id="roast-bubble">Oi, you look like you've been dragged through a hedge backwards. What d'you want?</div>
-  </div>
-  <div id="games-menu">
+    <div
+      class="bg"
+      style="background-image: url('https://i.postimg.cc/G2ktg9q1/image-jpg-(1).jpg');"
+    ></div>
+
+    <div id="roast-bubble">
+      Oi, you again. What do you want, you daft git?
+    </div>
+
+    <div id="games-menu">
       <button>Football Card</button>
       <button>Bingo (coming)</button>
       <button>Quiz</button>
