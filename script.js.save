@@ -1,0 +1,16 @@
+document.addEventListener('DOMContentLoaded', () => {
+  const outside = document.getElementById('view-outside');
+  const inside = document.getElementById('view-inside');
+  const enterBtn = document.getElementById('enter-btn');
+
+  enterBtn.addEventListener('click', () => {
+    outside.classList.remove('active');
+    inside.classList.add('active');
+  });
+
+  if (window.Telegram?.WebApp) {
+    Telegram.WebApp.ready();
+    Telegram.WebApp.expand();
+  }
+});
+

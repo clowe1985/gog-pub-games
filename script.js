@@ -13,3 +13,25 @@ document.addEventListener('DOMContentLoaded', () => {
     Telegram.WebApp.expand();
   }
 });
+
+function showGame(gameId) {
+  const pub = document.getElementById('view-inside');
+  const gameScreen = document.getElementById('game-' + gameId);
+
+  pub.classList.remove('active');
+
+  document.querySelectorAll('.game-screen').forEach(screen => {
+    screen.classList.remove('visible');
+  });
+
+  gameScreen.classList.add('visible');
+}
+
+function backToPub() {
+  document.querySelectorAll('.game-screen').forEach(screen => {
+    screen.classList.remove('visible');
+  });
+
+  const pub = document.getElementById('view-inside');
+  pub.classList.add('active');
+}
