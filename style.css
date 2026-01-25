@@ -90,6 +90,7 @@ html, body {
   cursor: pointer;
 }
 
+/* Game screens */
 .game-screen {
   position: absolute;
   inset: 0;
@@ -100,7 +101,8 @@ html, body {
 }
 
 .game-screen.visible {
-  display: block;
+  display: flex;
+  flex-direction: column;
   pointer-events: auto;
 }
 
@@ -109,6 +111,9 @@ html, body {
   height: 100%;
   object-fit: contain;
   object-position: center;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
 }
 
 .back-btn {
@@ -125,100 +130,109 @@ html, body {
   z-index: 30;
 }
 
+/* Football card specific layout */
+#game-football {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+#football-rules {
+  background: rgba(0,0,0,0.65);
+  color: #e0c9a6;
+  padding: 16px 20px;
+  margin: 20px 20px 12px;
+  border-radius: 10px;
+  border: 2px solid #8b5a2b;
+  font-size: 1em;
+  line-height: 1.4;
+  z-index: 10;
+  max-height: 35vh;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
 #football-grid {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
-  gap: 8px;
-  padding: 20px;
-  max-width: 90%;
-  margin: 0 auto;
+  gap: 10px;
+  padding: 15px 20px;
+  margin-top: auto;               /* pushes grid to bottom */
+  max-height: 55vh;               /* leaves room for rules + back button */
+  overflow-y: auto;
+  flex-grow: 1;
 }
 
 .team-slot {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.08);
   border: 2px solid #8b5a2b;
   border-radius: 8px;
-  padding: 12px;
+  padding: 10px 6px;
   text-align: center;
   color: white;
   font-size: 0.9em;
   cursor: pointer;
   transition: background 0.3s;
-}
-
-.team-slot:hover {
-  background: rgba(139,90,43,0.3);
-}
-
-.team-slot.claimed {
-  background: rgba(139,90,43,0.6);
-  cursor: default;
-}
-
-.locked-screen {
-  height: 100%;
+  min-height: 60px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: center;
-  text-align: center;
-  padding: 20px;
-  background: #2b1b12;
+}
+
+.team-slot:hover {
+  background: rgba(139,90,43,0.4);
+}
+
+.team-slot.claimed {
+  background: rgba(139,90,43,0.7);
+  cursor: default;
+}
+
+.username {
+  font-size: 0.8em;
+  margin-top: 4px;
   color: #e0c9a6;
 }
 
-.locked-screen h2 {
-  color: #ff4444;
-  margin-bottom: 20px;
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  #football-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 12px 15px;
+  }
+
+  .team-slot {
+    font-size: 0.85em;
+    min-height: 70px;
+  }
+
+  #football-rules {
+    margin: 15px 15px 10px;
+    font-size: 0.9em;
+  }
+
+  .back-btn {
+    top: 12px;
+    left: 12px;
+    padding: 10px 20px;
+    font-size: 1.1em;
+  }
 }
 
-.locked-screen button {
-  margin-top: 20px;
-  padding: 15px 30px;
-  font-size: 1.2em;
-  background: #8b5a2b;
-  color: white;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-}
+/* Very small screens (old phones) */
+@media (max-width: 480px) {
+  #football-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
 
-#wallet-overlay {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 999;
-}
+  .team-slot {
+    font-size: 0.8em;
+    min-height: 80px;
+  }
 
-#wallet-overlay.hidden {
-  display: none;
-}
-
-.overlay-bg {
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.7);
-}
-
-.overlay-content {
-  position: relative;
-  background: #2b1b12;
-  padding: 2rem;
-  border: 2px solid #e0c9a6;
-  border-radius: 1rem;
-  color: #e0c9a6;
-  text-align: center;
-  max-width: 300px;
-  z-index: 1;
-}
-.overlay-content button {
-  margin-top: 1rem;
-  padding: 0.5rem 1rem;
-  border: 1px solid #e0c9a6;
-  background: #3a2315;
-  color: #e0c9a6;
-  border-radius: 0.5rem;
-  cursor: pointer;
+  #football-rules {
+    font-size: 0.85em;
+  }
 }
