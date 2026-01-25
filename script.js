@@ -16,10 +16,11 @@ document.addEventListener('DOMContentLoaded', () => {
       enterBtn.textContent = "Checking wallet...";
 
       // Send wallet check request to bot
-      Telegram.WebApp.sendData(JSON.stringify({
+      const sent = Telegram.WebApp.sendData(JSON.stringify({
         action: "check_wallet",
         user_id: user.id
       }));
+    console.log("sendData result:", sent);
     } else {
       showLocked("No Telegram user data. Bugger off and try again.");
     }
