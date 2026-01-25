@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
       user_id: user.id,
       game: gameId
     }));
+    console.log("Game wallet check SENT for game:", gameId, "user:", user.id);
 
     // Listen for bot response only for this attempt
     const handler = (event) => {
