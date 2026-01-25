@@ -3,19 +3,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const inside = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
 
-  const walletOverlay = document.getElementById('wallet-overlay');
-  const walletCloseBtn = document.getElementById('wallet-close-btn');
-
-  // Telegram init
+  // Telegram init (harmless, keep this)
   if (window.Telegram?.WebApp) {
     Telegram.WebApp.ready();
     Telegram.WebApp.expand();
   }
 
-  // --- PUB ENTRY ---
+  // --- ENTER PUB (ALWAYS ALLOWED) ---
   enterBtn.addEventListener('click', () => {
     outside.classList.remove('active');
     outside.style.opacity = '0';
+
     setTimeout(() => {
       outside.style.display = 'none';
       inside.classList.add('active');
@@ -23,19 +21,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1200);
   });
 
-  // --- GAME SCREEN SWITCHING ---
+  // --- GAME SWITCHING ---
   function showGame(gameId) {
     const pub = document.getElementById('view-inside');
     pub.classList.remove('active');
     pub.style.opacity = '0';
 
     const gameScreen = document.getElementById('game-' + gameId);
+
     setTimeout(() => {
       pub.style.display = 'none';
       gameScreen.style.display = 'block';
       gameScreen.classList.add('visible');
 
-      if (gameId === 'football') loadFootballCard();
+      if (gameId === 'football') {
+        loadFootballCard();
+      }
     }, 1000);
   }
 
@@ -49,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.game-screen').forEach(screen => {
         screen.style.display = 'none';
       });
+
       const pub = document.getElementById('view-inside');
       pub.style.display = 'flex';
       pub.classList.add('active');
@@ -56,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1000);
   }
 
-  // --- FOOTBALL CARD LOGIC ---
+  // --- FOOTBALL CARD GAME ---
   const footballTeams = [
     "Arsenal","Ajax","Bournemouth","Brentford","Brighton","Burnley",
     "Chelsea","Crystal Palace","Everton","Fulham","Liverpool","Luton",
@@ -84,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function pickTeam(index, team, slot) {
-    if (!confirm(`Claim ${team} for $1? Wallet already checked.`)) return;
+    if (!confirm(`Claim ${team} for $1? (Wallet logic temporarily disabled)`)) return;
 
     const username = Telegram.WebApp.initDataUnsafe.user?.username || "You";
     slot.querySelector('.username').textContent = `@${username}`;
@@ -92,11 +94,10 @@ document.addEventListener('DOMContentLoaded', () => {
     slot.onclick = null;
 
     console.log(`Claimed ${team} by @${username}`);
-    // Later: send to bot for real wallet tx & group announcement
+    // Wallet + bot announcement re-added later
   }
 
-  // --- EXPOSE FUNCTIONS GLOBALLY ---
+  // --- EXPOSE FUNCTIONS ---
   window.showGame = showGame;
   window.backToPub = backToPub;
-  window.tryEnterGame = tryEnterGame;
 });
