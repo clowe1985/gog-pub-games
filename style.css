@@ -182,3 +182,43 @@ html, body {
   border-radius: 10px;
   cursor: pointer;
 }
+
+#wallet-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+#wallet-overlay.hidden {
+  display: none;
+}
+
+.overlay-bg {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+}
+
+.overlay-content {
+  position: relative;
+  background: #2b1b12;
+  padding: 2rem;
+  border: 2px solid #e0c9a6;
+  border-radius: 1rem;
+  color: #e0c9a6;
+  text-align: center;
+  max-width: 300px;
+  z-index: 1;
+}
+.overlay-content button {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #e0c9a6;
+  background: #3a2315;
+  color: #e0c9a6;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
