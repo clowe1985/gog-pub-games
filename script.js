@@ -23,53 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1200);
   });
 
-  // --- WALLET OVERLAY UTILITY ---
-  function showWalletOverlay(message) {
-    walletOverlay.querySelector('p').textContent = message;
-    walletOverlay.classList.remove('hidden');
-  }
-
-  walletCloseBtn.addEventListener('click', () => {
-    walletOverlay.classList.add('hidden');
-  });
-
-  // --- PAID GAME WALLET CHECK ---
-  function tryEnterGame(gameId) {
-    const user = Telegram.WebApp.initDataUnsafe.user;
-    if (!user || !user.id) {
-      showWalletOverlay("No Telegram user data. DM the bot and send /start to create a wallet.");
-      return;
-    }
-
-    // Ask bot if wallet exists for this game
-    Telegram.WebApp.sendData(JSON.stringify({
-      action: "check_wallet",
-      user_id: user.id,
-      game: gameId
-    }));
-    console.log("Game wallet check SENT for game:", gameId, "user:", user.id);
-
-    // Listen for bot response only for this attempt
-    const handler = (event) => {
-      if (event.data === "ALLOWED") {
-        Telegram.WebApp.offEvent('message', handler);
-        showGame(gameId);
-      } else if (event.data.startsWith("DENIED")) {
-        Telegram.WebApp.offEvent('message', handler);
-        showWalletOverlay(event.data.split(":")[1]?.trim() || 
-          "You need to create a wallet before entering this game."
-        );
-      }
-    };
-    Telegram.WebApp.onEvent('message', handler);
-
-    // Timeout fallback
-    setTimeout(() => {
-      Telegram.WebApp.offEvent('message', handler);
-      showWalletOverlay("Wallet check timed out. Try again or DM the bot.");
-    }, 5000);
-  }
-
   // --- GAME SCREEN SWITCHING ---
   function showGame(gameId) {
     const pub = document.getElementById('view-inside');
