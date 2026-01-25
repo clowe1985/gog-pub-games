@@ -124,3 +124,61 @@ html, body {
   cursor: pointer;
   z-index: 30;
 }
+
+#football-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+  padding: 20px;
+  max-width: 90%;
+  margin: 0 auto;
+}
+
+.team-slot {
+  background: rgba(255,255,255,0.1);
+  border: 2px solid #8b5a2b;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+  color: white;
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.team-slot:hover {
+  background: rgba(139,90,43,0.3);
+}
+
+.team-slot.claimed {
+  background: rgba(139,90,43,0.6);
+  cursor: default;
+}
+
+.locked-screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 20px;
+  background: #2b1b12;
+  color: #e0c9a6;
+}
+
+.locked-screen h2 {
+  color: #ff4444;
+  margin-bottom: 20px;
+}
+
+.locked-screen button {
+  margin-top: 20px;
+  padding: 15px 30px;
+  font-size: 1.2em;
+  background: #8b5a2b;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
