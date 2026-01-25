@@ -3,12 +3,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const inside = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
 
-  // Make sure pub starts visible
+  // Force pub to start properly
   outside.classList.add('active');
   inside.classList.remove('active');
   inside.style.opacity = '0';
+  inside.style.display = 'none'; // hide until entered
 
-  // Enter button — straight to inside pub, no wallet nonsense
+  // Enter button - fade to inside pub
   enterBtn.addEventListener('click', () => {
     outside.style.opacity = '0';
     setTimeout(() => {
@@ -19,13 +20,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1200);
   });
 
-  // Telegram init (keep it)
+  // Telegram init
   if (window.Telegram?.WebApp) {
     Telegram.WebApp.ready();
     Telegram.WebApp.expand();
   }
 
-  // Game switching
+  // Game switching - only called when tapping a button
   function showGame(gameId) {
     const pub = document.getElementById('view-inside');
     pub.classList.remove('active');
@@ -38,7 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
       gameScreen.classList.add('visible');
 
       if (gameId === 'football') {
-        loadFootballCard();  // this loads the teams
+        loadFootballCard();  // loads teams into grid
+        console.log("Football grid loaded");
       }
     }, 1000);
   }
@@ -60,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1000);
   }
 
-  // Football Card teams & grid loader
+  // Football teams & grid loader
   const footballTeams = [
     "Arsenal", "Ajax", "Bournemouth", "Brentford", "Brighton", "Burnley",
     "Chelsea", "Crystal Palace", "Everton", "Fulham", "Liverpool", "Luton",
@@ -73,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function loadFootballCard() {
     const grid = document.getElementById('football-grid');
     if (!grid) {
-      console.error("No #football-grid div found!");
+      console.error("football-grid div missing!");
       return;
     }
     grid.innerHTML = '';
@@ -87,7 +89,6 @@ document.addEventListener('DOMContentLoaded', () => {
       slot.onclick = () => pickTeam(index, team, slot);
       grid.appendChild(slot);
     });
-    console.log("Football grid loaded with 32 teams");
   }
 
   function pickTeam(index, team, slot) {
@@ -96,7 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
     slot.querySelector('.username').textContent = `@${username}`;
     slot.classList.add('claimed');
     slot.onclick = null;
-    console.log(`Claimed ${team} by @${username}`);
   }
 
   window.showGame = showGame;
