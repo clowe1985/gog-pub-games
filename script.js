@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const inside = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
 
-  // Force correct initial state
+  // Force correct initial state – outside first, everything else hidden
   outside.style.display = 'flex';
   outside.classList.add('active');
   outside.style.opacity = '1';
@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     screen.classList.remove('visible');
   });
 
-  // Enter pub button
+  // Enter pub button – fade to inside pub (roast + games menu)
   enterBtn.addEventListener('click', () => {
     outside.style.opacity = '0';
     setTimeout(() => {
@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     Telegram.WebApp.expand();
   }
 
-  // Show game screen
+  // Show game screen – only called when tapping a game button
   window.showGame = function(gameId) {
     const pub = document.getElementById('view-inside');
     pub.classList.remove('active');
@@ -75,42 +75,89 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 600);
   };
 
-  // Football card loader
-  const footballTeams = [
-    "Arsenal", "Ajax", "Bournemouth", "Brentford", "Brighton", "Burnley",
-    "Chelsea", "Crystal Palace", "Everton", "Fulham", "Liverpool", "Luton",
-    "Man City", "Man United", "Newcastle", "Nottingham Forest", "Sheffield Utd",
-    "Tottenham", "West Ham", "Wolves", "Leicester", "Leeds", "Southampton",
-    "Blackburn", "Birmingham", "Coventry", "Ipswich", "Middlesbrough", "Norwich",
-    "Preston", "QPR", "Sheffield Wed"
-  ];
+  // Football teams list (same as before)
+const footballTeams = [
+  "Arsenal", "Aston Villa", "Bournemouth", "Brentford", "Brighton", "Burnley",
+  "Chelsea", "Crystal Palace", "Everton", "Fulham", "Liverpool", "Luton",
+  "Man City", "Man United", "Newcastle", "Nottingham Forest", "Sheffield Utd",
+  "Tottenham", "West Ham", "Wolves", "Leicester", "Leeds", "Southampton",
+  "Blackburn", "Birmingham", "Coventry", "Ipswich", "Middlesbrough", "Norwich",
+  "Preston", "QPR", "Sheffield Wed"
+];
 
-  function loadFootballCard() {
-    const grid = document.getElementById('football-grid');
-    if (!grid) {
-      console.error("football-grid not found!");
-      return;
+function fetchCardState() {
+  Telegram.WebApp.sendData(JSON.stringify({ action: "get_card_state" }));
+
+  const handler = (event) => {
+    if (event.data.startsWith("CARD_STATE:")) {
+      const state = JSON.parse(event.data.split("CARD_STATE:")[1]);
+      renderFootballGrid(state.teams);
+      Telegram.WebApp.offEvent('message', handler);
     }
-    grid.innerHTML = ''; // clear old content
-    footballTeams.forEach(team => {
-      const slot = document.createElement('div');
-      slot.className = 'team-slot';
-      slot.innerHTML = `
-        <div>${team}</div>
-        <div class="username">[Pick Me]</div>
-      `;
-      slot.onclick = () => pickTeam(team, slot);
-      grid.appendChild(slot);
-    });
-    console.log("Football grid loaded - 32 teams ready");
-  }
+  };
 
-  function pickTeam(team, slot) {
-    if (!confirm(`Claim ${team} for $1?`)) return;
-    const username = Telegram.WebApp.initDataUnsafe.user?.username || "You";
-    slot.querySelector('.username').textContent = `@${username}`;
-    slot.classList.add('claimed');
-    slot.onclick = null;
-    console.log(`Claimed ${team} by @${username}`);
+  Telegram.WebApp.onEvent('message', handler);
+
+  // Timeout
+  setTimeout(() => {
+    Telegram.WebApp.offEvent('message', handler);
+    console.log("Card state timed out");
+  }, 5000);
+}
+
+function renderFootballGrid(state) {
+  const grid = document.getElementById('football-grid');
+  if (!grid) return;
+
+  grid.innerHTML = '';
+
+  footballTeams.forEach(team => {
+    const claimedBy = state[team] || '[Pick Me]';
+    const slot = document.createElement('div');
+    slot.className = 'team-slot' + (claimedBy !== '[Pick Me]' ? ' claimed' : '');
+    slot.innerHTML = `
+      <div>${team}</div>
+      <div class="username">${claimedBy}</div>
+    `;
+
+    if (claimedBy === '[Pick Me]') {
+      slot.onclick = () => claimTeam(team, slot);
+    }
+
+    grid.appendChild(slot);
+  });
+}
+
+function claimTeam(team, slot) {
+  const username = '@' + (Telegram.WebApp.initDataUnsafe.user?.username || "You");
+
+  if (!confirm(`Claim ${team} as ${username}?`)) return;
+
+  Telegram.WebApp.sendData(JSON.stringify({
+    action: "claim_team",
+    team: team,
+    username: username
+  }));
+
+  const handler = (event) => {
+    if (event.data === "CLAIM_SUCCESS") {
+      slot.querySelector('.username').textContent = username;
+      slot.classList.add('claimed');
+      slot.onclick = null;
+    } else if (event.data.startsWith("DENIED")) {
+      alert(event.data);
+    }
+    Telegram.WebApp.offEvent('message', handler);
+  };
+
+  Telegram.WebApp.onEvent('message', handler);
+}
+
+// Hook into showGame
+const originalShowGame = showGame;
+showGame = function(gameId) {
+  originalShowGame(gameId);
+  if (gameId === 'football') {
+    fetchCardState();  // load real state from bot
   }
-});
+};
