@@ -132,9 +132,12 @@ html, body {
 
 /* Football card specific layout */
 #game-football {
+  position: absolute;
+  insert: 0;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  bakground: #2b1b12;
+  z-index: 20;
 }
 
 #football-rules {
