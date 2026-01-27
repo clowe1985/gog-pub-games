@@ -131,23 +131,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Listen for bot reply
   Telegram.WebApp.onEvent('web_app_data', (event) => {
-    const data = event.data;
-    if (!data || typeof data !== 'string') return;
+  const data = event.data;
+  if (!data || typeof data !== 'string') return;
 
-    if (data.startsWith('CLAIM_')) {
-      if (data === 'CLAIM_SUCCESS' && currentSlot) {
-        const usernameDiv = currentSlot.querySelector('.username');
-        const username = usernameDiv.textContent; // already set earlier for display
-        usernameDiv.textContent = username; // redundant but safe
-        currentSlot.classList.add('claimed');
-        currentSlot.onclick = null;
-        alert('Team claimed! 🎉');
-        currentSlot = null;
-      } else {
-        const reason = data.split(':')[1]?.trim() || 'Unknown error';
-        alert('Claim failed: ' + reason);
-        currentSlot = null;
-      }
+  if (data.startsWith('CLAIM_') && currentSlot) {
+    if (data === 'CLAIM_SUCCESS') {
+      const username = '@' + Telegram.WebApp.initDataUnsafe.user.username;
+      currentSlot.querySelector('.username').textContent = username;
+      currentSlot.classList.add('claimed');
+      currentSlot.onclick = null;
+      alert('Team claimed! 🎉');
+      currentSlot = null;
+    } else {
+      const reason = data.split(':')[1]?.trim() || 'Unknown error';
+      alert('Claim failed: ' + reason);
+      currentSlot = null;
     }
-  });
+  }
 });
