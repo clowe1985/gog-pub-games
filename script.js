@@ -91,24 +91,32 @@ document.addEventListener('DOMContentLoaded', () => {
       username: username
     }));
 
-    setTimeout(loadSavedClaims, 1500);
+    console.log(">>> DEBUG: Claim sent, waiting 2 seconds...");
+    
+    // Wait 2 seconds, then get updated state
+    setTimeout(() => {
+      Telegram.WebApp.sendData(JSON.stringify({ action: "get_card_state" }));
+      console.log(">>> DEBUG: Requested updated card state");
+    }, 2000);
+    
     console.log(`Claim sent: ${team} → ${username}`);
   }
 
   async function loadSavedClaims() {
     Telegram.WebApp.sendData(JSON.stringify({ action: "get_card_state" }));
+    console.log(">>> DEBUG: Loaded saved claims requested");
   }
 
   function updateGrid(claims) {
     console.log(">>> DEBUG: Updating grid with claims:", claims);
-
+    
     const slots = document.querySelectorAll('.team-slot');
     slots.forEach(slot => {
       const team = slot.querySelector('div:first-child').textContent.trim();
       const claimed = claims[team];
-
-      console.log('>>> DEBUG: Team ${team} = ${claimed}');
-
+      
+      console.log(`>>> DEBUG: Team ${team} = ${claimed}`);
+      
       if (claimed) {
         slot.querySelector('.username').textContent = claimed;
         slot.classList.add('claimed');
