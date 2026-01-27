@@ -8,6 +8,11 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
+  <!-- TEST BUTTON - Always visible -->
+  <button onclick="testWebApp()" style="position: fixed; top: 10px; right: 10px; background: red; color: white; padding: 10px; z-index: 9999; border: none; border-radius: 5px; font-weight: bold;">
+    TEST SEND
+  </button>
+
   <!-- OUTSIDE VIEW -->
   <div id="view-outside" class="view active">
     <div class="bg" style="background-image: url('https://i.postimg.cc/SKdt6GpY/outside.png');"></div>
@@ -67,6 +72,34 @@
     <img src="https://i.postimg.cc/8z3nt6Sb/gog-darts.jpg" alt="Darts Board" class="game-img">
     <button class="back-btn" onclick="backToPub()">Back to Bar</button>
   </div>
+
+  <script>
+    // TEST FUNCTION - ADD THIS
+    function testWebApp() {
+        console.log(">>> TEST: Trying to send data");
+
+        if (!Telegram || !Telegram.WebApp) {
+            alert("Telegram WebApp not loaded!");
+            return;
+        }
+
+        const testData = {
+            action: "test",
+            message: "Hello from web app",
+            timestamp: new Date().toISOString()
+        };
+
+        console.log(">>> TEST: Sending:", testData);
+
+        try {
+            Telegram.WebApp.sendData(JSON.stringify(testData));
+            alert("Data sent! Check bot logs.");
+        } catch (error) {
+            console.error(">>> TEST: Error:", error);
+            alert("Error: " + error.message);
+        }
+    }
+  </script>
 
   <script src="script.js"></script>
 </body>

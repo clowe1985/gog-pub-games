@@ -1,4 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
+  // At the VERY TOP of your script.js, add:
+  console.log(">>> SCRIPT LOADED");
+  console.log(">>> Telegram WebApp available:", typeof Telegram !== 'undefined');
+  if (typeof Telegram !== 'undefined') {
+      console.log(">>> WebApp version:", Telegram.WebApp.version);
+      console.log(">>> Init Data:", Telegram.WebApp.initData);
+      console.log(">>> User:", Telegram.WebApp.initDataUnsafe.user);
+  }
   const outside = document.getElementById('view-outside');
   const inside = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
