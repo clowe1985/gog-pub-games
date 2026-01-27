@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
       inside.style.opacity = '1';
     }, 800);
   };
+
   const footballTeams = [
     "Arsenal", "Ajax", "Bournemouth", "Brentford", "Brighton", "Burnley",
     "Chelsea", "Crystal Palace", "Everton", "Fulham", "Liverpool", "Luton",
@@ -59,6 +60,9 @@ document.addEventListener('DOMContentLoaded', () => {
     "Blackburn", "Birmingham", "Coventry", "Ipswich", "Middlesbrough", "Norwich",
     "Preston", "QPR", "Sheffield Wed"
   ];
+
+  let currentSlot = null;
+  let currentUsername = null;
 
   function loadFootballCard() {
     const grid = document.getElementById('football-grid');
@@ -81,6 +85,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const username = '@' + user.username;
     if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
 
+    currentSlot = slot;
+    currentUsername = username;
+
     Telegram.WebApp.sendData(JSON.stringify({
       action: "claim_team",
       team: team,
@@ -88,21 +95,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
 
     console.log(`Sent claim: ${team} → ${username}`);
-
-    const handler = (event) => {
-      console.log("Reply:", event.data);
-      if (event.data === "CLAIM_SUCCESS") {
-        slot.querySelector('.username').textContent = username;
-        slot.classList.add('claimed');
-        slot.onclick = null;
-      } else if (event.data.startsWith("CLAIM_DENIED")) {
-        alert(event.data);
-      }
-      Telegram.WebApp.offEvent('message', handler);
-    };
-
-    Telegram.WebApp.onEvent('message', handler);
-    setTimeout(() => Telegram.WebApp.offEvent('message', handler), 10000);
   }
 
   async function loadSavedClaims() {
@@ -122,9 +114,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  Telegram.WebApp.onEvent('message', (event) => {
+  Telegram.WebApp.onEvent('web_app_data', (event) => {
     const data = event.data;
-    if (typeof data === 'string' && data.startsWith('CARD_STATE:')) {
+    if (typeof data !== 'string') return;
+
+    if (data === "CLAIM_SUCCESS" && currentSlot) {
+      currentSlot.querySelector('.username').textContent = currentUsername;
+      currentSlot.classList.add('claimed');
+      currentSlot.onclick = null;
+      currentSlot = null;
+      currentUsername = null;
+    } else if (data.startsWith("CLAIM_DENIED")) {
+      alert(data);
+      currentSlot = null;
+      currentUsername = null;
+    } else if (data.startsWith("CARD_STATE:")) {
       try {
         const json = data.replace('CARD_STATE:', '');
         const state = JSON.parse(json);
