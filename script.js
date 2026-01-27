@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const outside = document.getElementById('view-outside');
   const inside = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
+  console.log("User from Telegram:", Telegram.WebApp.initDataUnsafe.user);
 
   // Force start on outside pub
   outside.style.display = 'flex';
