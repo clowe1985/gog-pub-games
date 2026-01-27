@@ -116,8 +116,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     grid.innerHTML = '';
 
-    Object.keys(currentCardState).forEach(team => {
-      const claimedBy = currentCardState[team];
+    footballTeams.forEach(team => {
+      const claimedBy = currentCardState[team] || null;
 
       const slot = document.createElement('div');
       slot.className = 'team-slot';
