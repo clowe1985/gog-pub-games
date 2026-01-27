@@ -88,6 +88,9 @@ document.addEventListener('DOMContentLoaded', () => {
     currentSlot = slot;
     currentUsername = username;
 
+    currentSlot = slot;
+    currentUsername = username;
+
     Telegram.WebApp.sendData(JSON.stringify({
       action: "claim_team",
       team: team,
