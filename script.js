@@ -91,32 +91,76 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load grid
   function loadFootballCard() {
     const grid = document.getElementById('football-grid');
-    if (!grid) {
-      console.error("football-grid div is missing, you numpty");
-      return;
-    }
+    if (!grid) return;
 
-    grid.innerHTML = ''; // clear
+    // Ask bot for current state
+    Telegram.WebApp.sendData(JSON.stringify({ action: "get_card_state" }));
+
+    const handler = (event) => {
+      if (event.data.startsWith("CARD_STATE:")) {
+        const state = JSON.parse(event.data.split("CARD_STATE:")[1]);
+        renderFootballGrid(state);
+        Telegram.WebApp.offEvent('message', handler);
+      }
+    };
+
+    Telegram.WebApp.onEvent('message', handler);
+
+    setTimeout(() => {
+      Telegram.WebApp.offEvent('message', handler);
+    }, 5000);
+  }
+
+  function renderFootballGrid(state) {
+    const grid = document.getElementById('football-grid');
+    grid.innerHTML = '';
+
+
 
     footballTeams.forEach(team => {
+      const claimedBy = state[team] || '[Pick Me]';
       const slot = document.createElement('div');
-      slot.className = 'team-slot';
+      slot.className = 'team-slot' + (claimedBy !== '[Pick Me]' ? ' claimed' : '');
       slot.innerHTML = `
         <div>${team}</div>
-        <div class="username">[Pick Me]</div>
+        <div class="username">${claimedBy}</div>
       `;
-      slot.onclick = () => pickTeam(team, slot);
+
+      if (claimedBy === '[Pick Me]') {
+        slot.onclick = () => claimTeam(team, slot);
+      }
+
       grid.appendChild(slot);
     });
-
-    console.log("Football grid loaded - 32 teams added");
   }
 
-  function pickTeam(team, slot) {
-    if (!confirm(`Claim ${team} for $1?`)) return;
-    const username = Telegram.WebApp.initDataUnsafe.user?.username || "You";
-    slot.querySelector('.username').textContent = `@${username}`;
-    slot.classList.add('claimed');
-    slot.onclick = null;
+  function claimTeam(team, slot) {
+    const username = Telegram.WebApp.initDataUnsafe.user;
+    if (!user || !user.username) {
+      alert("No Username? Can't claim.");
+      return;
   }
-});
+
+  const username = '@' + user.username;
+
+  if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
+
+  Telegram.WebApp.sendData(JSON.stringify({
+    action: "claim_team",
+    team: team,
+    username: username
+  }));
+
+  const handler = (event) => {
+    if (event.data === "CLAIM_ SUCCESS") {
+      slot.querySelector('.username').textContent = username;
+      slot.classList.add('claimed');
+      slot.onclick = null;
+    } else if (event.data.startsWith("CLAIM_DENIED")) {
+      alert(event.data);
+    }
+    Telegram.WebApp.offEvent('message', handler);
+  };
+
+  Telegram.WebApp.onEvent('message', handler);
+}
