@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const inside = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
 
-  // Force start on outside
+  // Force start on outside pub
   outside.style.display = 'flex';
   outside.classList.add('active');
   outside.style.opacity = '1';
@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   inside.classList.remove('active');
   inside.style.opacity = '0';
 
-  // Hide games
+  // Hide all game screens
   document.querySelectorAll('.game-screen').forEach(screen => {
     screen.style.display = 'none';
     screen.classList.remove('visible');
@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Football teams
   const footballTeams = [
-    "Arsenal", "Ajax", "Bournemouth", "Brentford", "Brighton", "Burnley",
+    "Arsenal", "Aston Villa", "Bournemouth", "Brentford", "Brighton", "Burnley",
     "Chelsea", "Crystal Palace", "Everton", "Fulham", "Liverpool", "Luton",
     "Man City", "Man United", "Newcastle", "Nottingham Forest", "Sheffield Utd",
     "Tottenham", "West Ham", "Wolves", "Leicester", "Leeds", "Southampton",
@@ -88,79 +88,47 @@ document.addEventListener('DOMContentLoaded', () => {
     "Preston", "QPR", "Sheffield Wed"
   ];
 
-  // Load grid
+  // Load football card grid
   function loadFootballCard() {
     const grid = document.getElementById('football-grid');
-    if (!grid) return;
+    if (!grid) {
+      console.error("football-grid div missing - check HTML");
+      return;
+    }
 
-    // Ask bot for current state
-    Telegram.WebApp.sendData(JSON.stringify({ action: "get_card_state" }));
-
-    const handler = (event) => {
-      if (event.data.startsWith("CARD_STATE:")) {
-        const state = JSON.parse(event.data.split("CARD_STATE:")[1]);
-        renderFootballGrid(state);
-        Telegram.WebApp.offEvent('message', handler);
-      }
-    };
-
-    Telegram.WebApp.onEvent('message', handler);
-
-    setTimeout(() => {
-      Telegram.WebApp.offEvent('message', handler);
-    }, 5000);
-  }
-
-  function renderFootballGrid(state) {
-    const grid = document.getElementById('football-grid');
-    grid.innerHTML = '';
-
-
+    grid.innerHTML = ''; // clear old content
 
     footballTeams.forEach(team => {
-      const claimedBy = state[team] || '[Pick Me]';
       const slot = document.createElement('div');
-      slot.className = 'team-slot' + (claimedBy !== '[Pick Me]' ? ' claimed' : '');
+      slot.className = 'team-slot';
       slot.innerHTML = `
         <div>${team}</div>
-        <div class="username">${claimedBy}</div>
+        <div class="username">[Pick Me]</div>
       `;
-
-      if (claimedBy === '[Pick Me]') {
-        slot.onclick = () => claimTeam(team, slot);
-      }
-
+      slot.onclick = () => pickTeam(team, slot);
       grid.appendChild(slot);
     });
+
+    console.log("Football grid loaded - 32 teams ready");
   }
 
-  function claimTeam(team, slot) {
-    const username = Telegram.WebApp.initDataUnsafe.user;
+  // Claim team
+  function pickTeam(team, slot) {
+    const user = Telegram.WebApp.initDataUnsafe.user;
     if (!user || !user.username) {
-      alert("No Username? Can't claim.");
+      alert("No username found. Can't claim.");
       return;
-  }
-
-  const username = '@' + user.username;
-
-  if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
-
-  Telegram.WebApp.sendData(JSON.stringify({
-    action: "claim_team",
-    team: team,
-    username: username
-  }));
-
-  const handler = (event) => {
-    if (event.data === "CLAIM_ SUCCESS") {
-      slot.querySelector('.username').textContent = username;
-      slot.classList.add('claimed');
-      slot.onclick = null;
-    } else if (event.data.startsWith("CLAIM_DENIED")) {
-      alert(event.data);
     }
-    Telegram.WebApp.offEvent('message', handler);
-  };
 
-  Telegram.WebApp.onEvent('message', handler);
-}
+    const username = '@' + user.username;
+
+    if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
+
+    slot.querySelector('.username').textContent = username;
+    slot.classList.add('claimed');
+    slot.onclick = null;
+
+    console.log(`Claimed ${team} by ${username}`);
+    // Later: send to bot for real wallet check & group announcement
+  }
+});
