@@ -2,19 +2,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const outside = document.getElementById('view-outside');
   const inside = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
-
   outside.style.display = 'flex';
   outside.classList.add('active');
   outside.style.opacity = '1';
   inside.style.display = 'none';
   inside.classList.remove('active');
   inside.style.opacity = '0';
-
   document.querySelectorAll('.game-screen').forEach(s => {
     s.style.display = 'none';
     s.classList.remove('visible');
   });
-
   enterBtn.addEventListener('click', () => {
     outside.style.opacity = '0';
     setTimeout(() => {
@@ -25,12 +22,10 @@ document.addEventListener('DOMContentLoaded', () => {
       inside.style.opacity = '1';
     }, 1200);
   });
-
   if (window.Telegram?.WebApp) {
     Telegram.WebApp.ready();
     Telegram.WebApp.expand();
   }
-
   window.showGame = function(gameId) {
     inside.style.opacity = '0';
     setTimeout(() => {
@@ -44,7 +39,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (gameId === 'football') loadFootballCard();
     }, 800);
   };
-
   window.backToPub = function() {
     document.querySelectorAll('.game-screen').forEach(s => s.style.opacity = '0');
     setTimeout(() => {
@@ -57,9 +51,8 @@ document.addEventListener('DOMContentLoaded', () => {
       inside.style.opacity = '1';
     }, 800);
   };
-
   const footballTeams = [
-    "Arsenal", "Aston Villa", "Bournemouth", "Brentford", "Brighton", "Burnley",
+    "Arsenal", "Ajax", "Bournemouth", "Brentford", "Brighton", "Burnley",
     "Chelsea", "Crystal Palace", "Everton", "Fulham", "Liverpool", "Luton",
     "Man City", "Man United", "Newcastle", "Nottingham Forest", "Sheffield Utd",
     "Tottenham", "West Ham", "Wolves", "Leicester", "Leeds", "Southampton",
@@ -79,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
       grid.appendChild(slot);
     });
     console.log("Grid loaded");
+    loadSavedClaims();
   }
 
   function pickTeam(team, slot) {
@@ -86,9 +80,58 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!user || !user.username) return alert("No username found.");
     const username = '@' + user.username;
     if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
-    slot.querySelector('.username').textContent = username;
-    slot.classList.add('claimed');
-    slot.onclick = null;
-    console.log(`Claimed ${team} by ${username}`);
+
+    Telegram.WebApp.sendData(JSON.stringify({
+      action: "claim_team",
+      team: team,
+      username: username
+    }));
+
+    console.log(`Sent claim: ${team} → ${username}`);
+
+    const handler = (event) => {
+      console.log("Reply:", event.data);
+      if (event.data === "CLAIM_SUCCESS") {
+        slot.querySelector('.username').textContent = username;
+        slot.classList.add('claimed');
+        slot.onclick = null;
+      } else if (event.data.startsWith("CLAIM_DENIED")) {
+        alert(event.data);
+      }
+      Telegram.WebApp.offEvent('message', handler);
+    };
+
+    Telegram.WebApp.onEvent('message', handler);
+    setTimeout(() => Telegram.WebApp.offEvent('message', handler), 10000);
   }
+
+  async function loadSavedClaims() {
+    Telegram.WebApp.sendData(JSON.stringify({ action: "get_card_state" }));
+  }
+
+  function updateGrid(claims) {
+    const slots = document.querySelectorAll('.team-slot');
+    slots.forEach(slot => {
+      const team = slot.querySelector('div:first-child').textContent.trim();
+      const claimed = claims[team];
+      if (claimed) {
+        slot.querySelector('.username').textContent = claimed;
+        slot.classList.add('claimed');
+        slot.onclick = null;
+      }
+    });
+  }
+
+  Telegram.WebApp.onEvent('message', (event) => {
+    const data = event.data;
+    if (typeof data === 'string' && data.startsWith('CARD_STATE:')) {
+      try {
+        const json = data.replace('CARD_STATE:', '');
+        const state = JSON.parse(json);
+        updateGrid(state.teams || state);
+      } catch (e) {
+        console.error("State parse error:", e);
+      }
+    }
+  });
 });
