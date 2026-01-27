@@ -1,11 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
   const outside = document.getElementById('view-outside');
-  const inside = document.getElementById('view-inside');
+  const inside  = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
 
-  console.log("User from Telegram:", Telegram.WebApp.initDataUnsafe.user);
+  console.log("User:", Telegram.WebApp.initDataUnsafe.user);
 
-  // Force start on outside pub
+  // Start: only outside visible
   outside.style.display = 'flex';
   outside.classList.add('active');
   outside.style.opacity = '1';
@@ -13,10 +13,10 @@ document.addEventListener('DOMContentLoaded', () => {
   inside.classList.remove('active');
   inside.style.opacity = '0';
 
-  // Hide all game screens
-  document.querySelectorAll('.game-screen').forEach(screen => {
-    screen.style.display = 'none';
-    screen.classList.remove('visible');
+  // Hide games
+  document.querySelectorAll('.game-screen').forEach(s => {
+    s.style.display = 'none';
+    s.classList.remove('visible');
   });
 
   // Enter pub
@@ -31,42 +31,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1200);
   });
 
-  // Telegram init
+  // Telegram
   if (window.Telegram?.WebApp) {
     Telegram.WebApp.ready();
     Telegram.WebApp.expand();
   }
 
-  // Show game tab
+  // Show game
   window.showGame = function(gameId) {
-    const pub = document.getElementById('view-inside');
-    pub.style.opacity = '0';
+    inside.style.opacity = '0';
     setTimeout(() => {
-      pub.style.display = 'none';
-      pub.classList.remove('active');
-      const gameScreen = document.getElementById('game-' + gameId);
-      if (!gameScreen) {
-        console.error("Game screen missing for", gameId);
+      inside.style.display = 'none';
+      inside.classList.remove('active');
+      const screen = document.getElementById('game-' + gameId);
+      if (!screen) {
+        console.error("Missing screen:", gameId);
         return;
       }
-      gameScreen.style.display = 'block';
-      gameScreen.classList.add('visible');
-      gameScreen.style.opacity = '1';
-      if (gameId === 'football') {
-        loadFootballCard();
-      }
+      screen.style.display = 'block';
+      screen.classList.add('visible');
+      screen.style.opacity = '1';
+      if (gameId === 'football') loadFootballCard();
     }, 800);
   };
 
-  // Back to pub
+  // Back
   window.backToPub = function() {
-    document.querySelectorAll('.game-screen').forEach(screen => {
-      screen.style.opacity = '0';
-    });
+    document.querySelectorAll('.game-screen').forEach(s => s.style.opacity = '0');
     setTimeout(() => {
-      document.querySelectorAll('.game-screen').forEach(screen => {
-        screen.style.display = 'none';
-        screen.classList.remove('visible');
+      document.querySelectorAll('.game-screen').forEach(s => {
+        s.style.display = 'none';
+        s.classList.remove('visible');
       });
       inside.style.display = 'flex';
       inside.classList.add('active');
@@ -74,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 800);
   };
 
-  // Football teams
+  // Teams (note: you have "Ajax" now instead of Arsenal? intentional?)
   const footballTeams = [
     "Arsenal", "Ajax", "Bournemouth", "Brentford", "Brighton", "Burnley",
     "Chelsea", "Crystal Palace", "Everton", "Fulham", "Liverpool", "Luton",
@@ -84,68 +79,58 @@ document.addEventListener('DOMContentLoaded', () => {
     "Preston", "QPR", "Sheffield Wed"
   ];
 
-  let currentSlot = null; // track slot being claimed
+  let currentSlot = null;
 
-  // Load football card grid
   function loadFootballCard() {
     const grid = document.getElementById('football-grid');
     if (!grid) {
-      console.error("football-grid div missing - check HTML");
+      console.error("No #football-grid in HTML");
       return;
     }
-    grid.innerHTML = ''; // clear old content
+    grid.innerHTML = '';
     footballTeams.forEach(team => {
       const slot = document.createElement('div');
       slot.className = 'team-slot';
-      slot.innerHTML = `
-        <div>${team}</div>
-        <div class="username">[Pick Me]</div>
-      `;
+      slot.innerHTML = `<div>${team}</div><div class="username">[Pick Me]</div>`;
       slot.onclick = () => pickTeam(team, slot);
       grid.appendChild(slot);
     });
-    console.log("Football grid loaded - 32 teams ready");
+    console.log("Grid built — 32 slots");
   }
 
-  // Claim team
   function pickTeam(team, slot) {
     const user = Telegram.WebApp.initDataUnsafe.user;
     if (!user || !user.username) {
-      alert("No username found. Can't claim.");
+      alert("No username — can't claim.");
       return;
     }
     const username = '@' + user.username;
-
     if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
-
-    currentSlot = slot; // remember which slot to update on success
-
+    currentSlot = slot;
     Telegram.WebApp.sendData(JSON.stringify({
       action: "claim_team",
       team: team,
       username: username
     }));
-
-    console.log(`Sent claim for ${team} by ${username}`);
+    console.log(`Claim sent: ${team} → ${username}`);
   }
 
-  // Listen for bot reply
   Telegram.WebApp.onEvent('web_app_data', (event) => {
-  const data = event.data;
-  if (!data || typeof data !== 'string') return;
-
-  if (data.startsWith('CLAIM_') && currentSlot) {
-    if (data === 'CLAIM_SUCCESS') {
-      const username = '@' + Telegram.WebApp.initDataUnsafe.user.username;
-      currentSlot.querySelector('.username').textContent = username;
-      currentSlot.classList.add('claimed');
-      currentSlot.onclick = null;
-      alert('Team claimed! 🎉');
-      currentSlot = null;
-    } else {
-      const reason = data.split(':')[1]?.trim() || 'Unknown error';
-      alert('Claim failed: ' + reason);
-      currentSlot = null;
+    const data = event.data;
+    if (!data || typeof data !== 'string') return;
+    if (data.startsWith('CLAIM_') && currentSlot) {
+      if (data === 'CLAIM_SUCCESS') {
+        const username = '@' + Telegram.WebApp.initDataUnsafe.user.username;
+        currentSlot.querySelector('.username').textContent = username;
+        currentSlot.classList.add('claimed');
+        currentSlot.onclick = null;
+        alert('Claimed! 🎉');
+        currentSlot = null;
+      } else {
+        const reason = data.split(':')[1]?.trim() || 'Error';
+        alert('Failed: ' + reason);
+        currentSlot = null;
+      }
     }
-  }
+  });
 });
