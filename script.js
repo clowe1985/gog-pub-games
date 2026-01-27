@@ -3,106 +3,120 @@ document.addEventListener('DOMContentLoaded', () => {
   const inside = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
 
+  // Force start on outside
   outside.style.display = 'flex';
+  outside.classList.add('active');
+  outside.style.opacity = '1';
   inside.style.display = 'none';
+  inside.classList.remove('active');
+  inside.style.opacity = '0';
 
-  enterBtn.addEventListener('click', () => {
-    outside.style.display = 'none';
-    inside.style.display = 'flex';
+  // Hide games
+  document.querySelectorAll('.game-screen').forEach(screen => {
+    screen.style.display = 'none';
+    screen.classList.remove('visible');
   });
 
+  // Enter pub
+  enterBtn.addEventListener('click', () => {
+    outside.style.opacity = '0';
+    setTimeout(() => {
+      outside.style.display = 'none';
+      outside.classList.remove('active');
+      inside.style.display = 'flex';
+      inside.classList.add('active');
+      inside.style.opacity = '1';
+    }, 1200);
+  });
+
+  // Telegram init
   if (window.Telegram?.WebApp) {
     Telegram.WebApp.ready();
     Telegram.WebApp.expand();
   }
 
-  window.showGame = function (gameId) {
-    document.querySelectorAll('.game-screen').forEach(g => g.style.display = 'none');
+  // Show game tab
+  window.showGame = function(gameId) {
+    const pub = document.getElementById('view-inside');
+    pub.style.opacity = '0';
 
-    const game = document.getElementById('game-' + gameId);
-    if (!game) return;
+    setTimeout(() => {
+      pub.style.display = 'none';
+      pub.classList.remove('active');
 
-    game.style.display = 'block';
+      const gameScreen = document.getElementById('game-' + gameId);
+      if (!gameScreen) {
+        console.error("Game screen missing for", gameId);
+        return;
+      }
 
-    if (gameId === 'football') {
-      loadFootballCard();
-    }
+      gameScreen.style.display = 'block';
+      gameScreen.classList.add('visible');
+      gameScreen.style.opacity = '1';
+
+      if (gameId === 'football') {
+        loadFootballCard();
+      }
+    }, 800);
   };
 
-  window.backToPub = function () {
-    document.querySelectorAll('.game-screen').forEach(g => g.style.display = 'none');
-    inside.style.display = 'flex';
+  // Back to pub
+  window.backToPub = function() {
+    document.querySelectorAll('.game-screen').forEach(screen => {
+      screen.style.opacity = '0';
+    });
+
+    setTimeout(() => {
+      document.querySelectorAll('.game-screen').forEach(screen => {
+        screen.style.display = 'none';
+        screen.classList.remove('visible');
+      });
+
+      inside.style.display = 'flex';
+      inside.classList.add('active');
+      inside.style.opacity = '1';
+    }, 800);
   };
 
+  // Football teams
   const footballTeams = [
-    "Arsenal","Ajax","Bournemouth","Brentford","Brighton","Burnley",
-    "Chelsea","Crystal Palace","Everton","Fulham","Liverpool","Luton",
-    "Man City","Man United","Newcastle","Nottingham Forest","Sheffield Utd",
-    "Tottenham","West Ham","Wolves","Leicester","Leeds","Southampton",
-    "Blackburn","Birmingham","Coventry","Ipswich","Middlesbrough","Norwich",
-    "Preston","QPR","Sheffield Wed"
+    "Arsenal", "Ajax", "Bournemouth", "Brentford", "Brighton", "Burnley",
+    "Chelsea", "Crystal Palace", "Everton", "Fulham", "Liverpool", "Luton",
+    "Man City", "Man United", "Newcastle", "Nottingham Forest", "Sheffield Utd",
+    "Tottenham", "West Ham", "Wolves", "Leicester", "Leeds", "Southampton",
+    "Blackburn", "Birmingham", "Coventry", "Ipswich", "Middlesbrough", "Norwich",
+    "Preston", "QPR", "Sheffield Wed"
   ];
 
+  // Load grid
   function loadFootballCard() {
     const grid = document.getElementById('football-grid');
     if (!grid) {
-      console.error("football-grid missing");
+      console.error("football-grid div is missing, you numpty");
       return;
     }
 
-    Telegram.WebApp.sendData(JSON.stringify({ action: "get_card_state" }));
-
-    const handler = (event) => {
-      if (!event.data.startsWith("CARD_STATE:")) return;
-
-      const payload = JSON.parse(event.data.replace("CARD_STATE:", ""));
-      renderFootballGrid(payload.teams || {});
-      Telegram.WebApp.offEvent('message', handler);
-    };
-
-    Telegram.WebApp.onEvent('message', handler);
-  }
-
-  function renderFootballGrid(state) {
-    const grid = document.getElementById('football-grid');
-    grid.innerHTML = '';
+    grid.innerHTML = ''; // clear
 
     footballTeams.forEach(team => {
-      const claimedBy = state[team] || '[Pick Me]';
-
       const slot = document.createElement('div');
-      slot.className = 'team-slot' + (claimedBy !== '[Pick Me]' ? ' claimed' : '');
-      slot.innerHTML = `<div>${team}</div><div class="username">${claimedBy}</div>`;
-
-      if (claimedBy === '[Pick Me]') {
-        slot.onclick = () => claimTeam(team, slot);
-      }
-
+      slot.className = 'team-slot';
+      slot.innerHTML = `
+        <div>${team}</div>
+        <div class="username">[Pick Me]</div>
+      `;
+      slot.onclick = () => pickTeam(team, slot);
       grid.appendChild(slot);
     });
+
+    console.log("Football grid loaded - 32 teams added");
   }
 
-  function claimTeam(team, slot) {
-    const user = Telegram.WebApp.initDataUnsafe.user;
-    if (!user?.username) return;
-
-    const username = '@' + user.username;
-
-    Telegram.WebApp.sendData(JSON.stringify({
-      action: "claim_team",
-      team,
-      username
-    }));
-
-    const handler = (event) => {
-      if (event.data === "CLAIM_SUCCESS") {
-        slot.querySelector('.username').textContent = username;
-        slot.classList.add('claimed');
-        slot.onclick = null;
-      }
-      Telegram.WebApp.offEvent('message', handler);
-    };
-
-    Telegram.WebApp.onEvent('message', handler);
+  function pickTeam(team, slot) {
+    if (!confirm(`Claim ${team} for $1?`)) return;
+    const username = Telegram.WebApp.initDataUnsafe.user?.username || "You";
+    slot.querySelector('.username').textContent = `@${username}`;
+    slot.classList.add('claimed');
+    slot.onclick = null;
   }
 });
