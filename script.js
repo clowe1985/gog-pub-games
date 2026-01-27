@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function pickTeam(team, slot) {
-    const user = Telegram.WebApp.initDataUnsafe.user;
+    const user = Telegram?.WebApp?.initDataUnsafe?.user;
     if (!user || !user.username) return alert("No username found.");
     const username = '@' + user.username;
     if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  Telegram.WebApp.onEvent('web_app_data', (event) => {
+  Telegram.WebApp.onEvent('message', (event) => {
     const data = event.data;
     if (typeof data !== 'string') return;
 
@@ -122,14 +122,20 @@ document.addEventListener('DOMContentLoaded', () => {
       currentSlot.querySelector('.username').textContent = currentUsername;
       currentSlot.classList.add('claimed');
       currentSlot.onclick = null;
+
       console.log("Claim success - UI updated");
+
       currentSlot = null;
       currentUsername = null;
-    } else if (data.startsWith("CLAIM_DENIED")) {
+    }
+
+    else if (data.startsWith("CLAIM_DENIED")) {
       alert(data);
       currentSlot = null;
       currentUsername = null;
-    } else if (data.startsWith("CARD_STATE:")) {
+    }
+
+    else if (data.startsWith("CARD_STATE:")) {
       try {
         const json = data.replace('CARD_STATE:', '');
         const state = JSON.parse(json);
@@ -139,4 +145,5 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   });
+
 });
