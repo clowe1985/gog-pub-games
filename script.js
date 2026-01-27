@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   const outside = document.getElementById('view-outside');
-  const inside  = document.getElementById('view-inside');
+  const inside = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
 
   outside.style.display = 'flex';
@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
       inside.style.display = 'none';
       inside.classList.remove('active');
       const screen = document.getElementById('game-' + gameId);
-      if (!screen) return;
+      if (!screen) return console.error("Missing screen:", gameId);
       screen.style.display = 'block';
       screen.classList.add('visible');
       screen.style.opacity = '1';
@@ -83,39 +83,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function pickTeam(team, slot) {
     const user = Telegram.WebApp.initDataUnsafe.user;
-    if (!user || !user.username) {
-      alert("No username found. Can't claim.");
-      return;
-    }
-
+    if (!user || !user.username) return alert("No username found.");
     const username = '@' + user.username;
-
     if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
-
-    Telegram.WebApp.sendData(JSON.stringify({
-      action: "claim_team",
-      team: team,
-      username: username
-    }));
-
-    console.log(`Claim sent: ${team} → ${username}`);
-
-    const handler = (event) => {
-      console.log("Bot reply:", event.data);
-      if (event.data === "CLAIM_SUCCESS") {
-        slot.querySelector('.username').textContent = username;
-        slot.classList.add('claimed');
-        slot.onclick = null;
-      } else if (event.data.startsWith("CLAIM_DENIED")) {
-        alert(event.data);
-      }
-      Telegram.WebApp.offEvent('message', handler);
-    };
-
-    Telegram.WebApp.onEvent('message', handler);
-
-    setTimeout(() => {
-      Telegram.WebApp.offEvent('message', handler);
-    }, 5000);
+    slot.querySelector('.username').textContent = username;
+    slot.classList.add('claimed');
+    slot.onclick = null;
+    console.log(`Claimed ${team} by ${username}`);
   }
 });
