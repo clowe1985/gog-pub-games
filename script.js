@@ -3,141 +3,154 @@ document.addEventListener('DOMContentLoaded', () => {
   const inside = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
 
-  // Force start on outside view
+  let currentCardState = {};
+
+  // ---------- FORCE SAFE START ----------
   outside.style.display = 'flex';
   outside.classList.add('active');
   outside.style.opacity = '1';
+
   inside.style.display = 'none';
   inside.classList.remove('active');
   inside.style.opacity = '0';
 
-  // Hide all games at start
   document.querySelectorAll('.game-screen').forEach(screen => {
     screen.style.display = 'none';
     screen.classList.remove('visible');
+    screen.style.opacity = '0';
   });
 
-  // Enter pub
+  // ---------- TELEGRAM INIT ----------
+  if (window.Telegram?.WebApp) {
+    Telegram.WebApp.ready();
+    Telegram.WebApp.expand();
+  }
+
+  // ---------- ENTER PUB ----------
   enterBtn.addEventListener('click', () => {
     outside.style.opacity = '0';
     setTimeout(() => {
       outside.style.display = 'none';
       outside.classList.remove('active');
+
       inside.style.display = 'flex';
       inside.classList.add('active');
       inside.style.opacity = '1';
     }, 1200);
   });
 
-  // Telegram init
-  if (window.Telegram?.WebApp) {
-    Telegram.WebApp.ready();
-    Telegram.WebApp.expand();
-  }
+  // ---------- GLOBAL BOT MESSAGE HANDLER ----------
+  Telegram.WebApp.onEvent('message', (event) => {
+    if (!event.data) return;
 
-  // Show game
-  window.showGame = function(gameId) {
-    const pub = document.getElementById('view-inside');
-    pub.style.opacity = '0';
+    // CARD STATE
+    if (event.data.startsWith('CARD_STATE:')) {
+      try {
+        const payload = JSON.parse(event.data.replace('CARD_STATE:', ''));
+        currentCardState = payload.teams || {};
+        renderFootballGrid();
+      } catch (e) {
+        console.error('Failed to parse card state', e);
+      }
+      return;
+    }
+
+    // CLAIM RESULT
+    if (event.data === 'CLAIM_SUCCESS') {
+      requestCardState();
+      return;
+    }
+
+    if (event.data.startsWith('CLAIM_DENIED')) {
+      alert(event.data.replace('CLAIM_DENIED:', '').trim());
+      return;
+    }
+  });
+
+  // ---------- GAME NAV ----------
+  window.showGame = function (gameId) {
+    inside.style.opacity = '0';
+
     setTimeout(() => {
-      pub.style.display = 'none';
-      pub.classList.remove('active');
+      inside.style.display = 'none';
+      inside.classList.remove('active');
+
       const game = document.getElementById('game-' + gameId);
       game.style.display = 'block';
       game.classList.add('visible');
       game.style.opacity = '1';
+
       if (gameId === 'football') {
-        loadFootballCard();
+        requestCardState();
       }
-    }, 1000);
+    }, 800);
   };
 
-  // Back to pub
-  window.backToPub = function() {
+  window.backToPub = function () {
     document.querySelectorAll('.game-screen').forEach(screen => {
       screen.style.opacity = '0';
     });
+
     setTimeout(() => {
       document.querySelectorAll('.game-screen').forEach(screen => {
         screen.style.display = 'none';
         screen.classList.remove('visible');
       });
+
       inside.style.display = 'flex';
       inside.classList.add('active');
       inside.style.opacity = '1';
-    }, 1000);
+    }, 800);
   };
 
-  // Football teams
-  const footballTeams = [
-    "Arsenal", "Ajax", "Bournemouth", "Brentford", "Brighton", "Burnley",
-    "Chelsea", "Crystal Palace", "Everton", "Fulham", "Liverpool", "Luton",
-    "Man City", "Man United", "Newcastle", "Nottingham Forest", "Sheffield Utd",
-    "Tottenham", "West Ham", "Wolves", "Leicester", "Leeds", "Southampton",
-    "Blackburn", "Birmingham", "Coventry", "Ipswich", "Middlesbrough", "Norwich",
-    "Preston", "QPR", "Sheffield Wed"
-  ];
+  // ---------- FOOTBALL CARD ----------
+  function requestCardState() {
+    Telegram.WebApp.sendData(JSON.stringify({
+      action: 'get_card_state'
+    }));
+  }
 
-function loadFootballCard() {
-  const grid = document.getElementById('football-grid');
-  if (!grid) return;
+  function renderFootballGrid() {
+    const grid = document.getElementById('football-grid');
+    if (!grid) return;
 
-  // Fetch state from bot
-  Telegram.WebApp.sendData(JSON.stringify({ action: "get_card_state" }));
+    grid.innerHTML = '';
 
-  const handler = (event) => {
-    if (event.data.startsWith("CARD_STATE:")) {
-      const state = JSON.parse(event.data.split("CARD_STATE:")[1]);
-      renderFootballGrid(state);
-      Telegram.WebApp.offEvent('message', handler);
-    }
-  };
+    Object.keys(currentCardState).forEach(team => {
+      const claimedBy = currentCardState[team];
 
-  Telegram.WebApp.onEvent('message', handler);
-}
+      const slot = document.createElement('div');
+      slot.className = 'team-slot';
+      if (claimedBy) slot.classList.add('claimed');
 
-function renderFootballGrid(state) {
-  const grid = document.getElementById('football-grid');
-  grid.innerHTML = '';
+      slot.innerHTML = `
+        <div>${team}</div>
+        <div class="username">${claimedBy || '[Pick Me]'}</div>
+      `;
 
-  footballTeams.forEach(team => {
-    const claimedBy = state[team] || '[Pick Me]';
-    const slot = document.createElement('div');
-    slot.className = 'team-slot' + (claimedBy !== '[Pick Me]' ? ' claimed' : '');
-    slot.innerHTML = `
-      <div>${team}</div>
-      <div class="username">${claimedBy}</div>
-    `;
+      if (!claimedBy) {
+        slot.onclick = () => attemptClaim(team);
+      }
 
-    if (claimedBy === '[Pick Me]') {
-      slot.onclick = () => claimTeam(team, slot);
+      grid.appendChild(slot);
+    });
+  }
+
+  function attemptClaim(team) {
+    const tgUser = Telegram.WebApp.initDataUnsafe.user;
+    if (!tgUser || !tgUser.username) {
+      alert('No Telegram username found. Set one first.');
+      return;
     }
 
-    grid.appendChild(slot);
-  });
-}
+    const username = '@' + tgUser.username;
 
-function claimTeam(team, slot) {
-  const username = '@' + (Telegram.WebApp.initDataUnsafe.user?.username || "You");
+    if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
 
-  if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
-
-  Telegram.WebApp.sendData(JSON.stringify({
-    action: "claim_team",
-    team: team,
-    username: username
-  }));
-
-  const handler = (event) => {
-    if (event.data === "CLAIM_SUCCESS") {
-      slot.querySelector('.username').textContent = username;
-      slot.classList.add('claimed');
-      slot.onclick = null;
-    } else if (event.data.startsWith("CLAIM_DENIED")) {
-      alert(event.data);
-    }
-    Telegram.WebApp.offEvent('message', handler);
-  };
-
-  Telegram.WebApp.onEvent('message', handler);
-}
+    Telegram.WebApp.sendData(JSON.stringify({
+      action: 'claim_team',
+      team: team,
+      username: username
+    }));
+  }
+});
