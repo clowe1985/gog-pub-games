@@ -3,7 +3,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const inside  = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
 
-  // Force start screen
   outside.style.display = 'flex';
   outside.classList.add('active');
   outside.style.opacity = '1';
@@ -84,8 +83,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function pickTeam(team, slot) {
     const user = Telegram.WebApp.initDataUnsafe.user;
-    if (!user || !user.username) return alert("No username");
+    if (!user || !user.username) {
+      alert("No username found. Can't claim.");
+      return;
+    }
+
     const username = '@' + user.username;
+
     if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
 
     Telegram.WebApp.sendData(JSON.stringify({
@@ -94,8 +98,10 @@ document.addEventListener('DOMContentLoaded', () => {
       username: username
     }));
 
+    console.log(`Claim sent: ${team} → ${username}`);
+
     const handler = (event) => {
-      console.log("Reply:", event.data);
+      console.log("Bot reply:", event.data);
       if (event.data === "CLAIM_SUCCESS") {
         slot.querySelector('.username').textContent = username;
         slot.classList.add('claimed');
@@ -107,6 +113,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     Telegram.WebApp.onEvent('message', handler);
-    setTimeout(() => Telegram.WebApp.offEvent('message', handler), 5000);
+
+    setTimeout(() => {
+      Telegram.WebApp.offEvent('message', handler);
+    }, 5000);
   }
 });
