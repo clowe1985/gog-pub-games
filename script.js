@@ -85,9 +85,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const username = '@' + user.username;
     if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
 
-    currentSlot = slot;
-    currentUsername = username;
-
     Telegram.WebApp.sendData(JSON.stringify({
       action: "claim_team",
       team: team,
@@ -95,6 +92,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
 
     console.log(`Sent claim: ${team} → ${username}`);
+
+    const handler = (event) => {
+      console.log("Bot reply:", event.data);
+      if (event.data === "CLAIM_SUCCESS") {
+        slot.querySelector('.username').textContent = username;
+        slot.classList.add('claimed');
+        slot.onclick = null;
+        console.log("UI updated - username set");
+      } else if (event.data.startsWith("CLAIM_DENIED")) {
+        alert(event.data);
+      }
+      Telegram.WebApp.offEvent('web_app_data', handler);
+    };
+
+    Telegram.WebApp.onEvent('web_app_data', handler);
+
+    setTimeout(() => {
+      Telegram.WebApp.offEvent('web_app_data'), handler);
+    }, 5000);
   }
 
   async function loadSavedClaims() {
