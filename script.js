@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   console.log("User:", Telegram.WebApp.initDataUnsafe.user);
 
-  // Start: only outside visible
   outside.style.display = 'flex';
   outside.classList.add('active');
   outside.style.opacity = '1';
@@ -13,13 +12,11 @@ document.addEventListener('DOMContentLoaded', () => {
   inside.classList.remove('active');
   inside.style.opacity = '0';
 
-  // Hide games
   document.querySelectorAll('.game-screen').forEach(s => {
     s.style.display = 'none';
     s.classList.remove('visible');
   });
 
-  // Enter pub
   enterBtn.addEventListener('click', () => {
     outside.style.opacity = '0';
     setTimeout(() => {
@@ -31,13 +28,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1200);
   });
 
-  // Telegram
   if (window.Telegram?.WebApp) {
     Telegram.WebApp.ready();
     Telegram.WebApp.expand();
   }
 
-  // Show game
   window.showGame = function(gameId) {
     inside.style.opacity = '0';
     setTimeout(() => {
@@ -55,7 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 800);
   };
 
-  // Back
   window.backToPub = function() {
     document.querySelectorAll('.game-screen').forEach(s => s.style.opacity = '0');
     setTimeout(() => {
@@ -69,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 800);
   };
 
-  // Teams (note: you have "Ajax" now instead of Arsenal? intentional?)
   const footballTeams = [
     "Arsenal", "Ajax", "Bournemouth", "Brentford", "Brighton", "Burnley",
     "Chelsea", "Crystal Palace", "Everton", "Fulham", "Liverpool", "Luton",
@@ -84,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function loadFootballCard() {
     const grid = document.getElementById('football-grid');
     if (!grid) {
-      console.error("No #football-grid in HTML");
+      console.error("No #football-grid");
       return;
     }
     grid.innerHTML = '';
@@ -95,7 +88,29 @@ document.addEventListener('DOMContentLoaded', () => {
       slot.onclick = () => pickTeam(team, slot);
       grid.appendChild(slot);
     });
-    console.log("Grid built — 32 slots");
+    console.log("Grid built");
+    loadExistingClaims();
+  }
+
+  async function loadExistingClaims() {
+    try {
+      Telegram.WebApp.sendData(JSON.stringify({action: "get_card_state"}));
+    } catch (e) {
+      console.error("State request failed:", e);
+    }
+  }
+
+  function updateGridWithClaims(claims) {
+    const slots = document.querySelectorAll('.team-slot');
+    slots.forEach(slot => {
+      const team = slot.querySelector('div:first-child').textContent.trim();
+      const claimedBy = claims[team];
+      if (claimedBy) {
+        slot.querySelector('.username').textContent = claimedBy;
+        slot.classList.add('claimed');
+        slot.onclick = null;
+      }
+    });
   }
 
   function pickTeam(team, slot) {
@@ -118,7 +133,16 @@ document.addEventListener('DOMContentLoaded', () => {
   Telegram.WebApp.onEvent('web_app_data', (event) => {
     const data = event.data;
     if (!data || typeof data !== 'string') return;
-    if (data.startsWith('CLAIM_') && currentSlot) {
+
+    if (data.startsWith('CARD_STATE:')) {
+      const json = data.replace('CARD_STATE:', '');
+      try {
+        const state = JSON.parse(json);
+        updateGridWithClaims(state.teams || state);
+      } catch (e) {
+        console.error("Bad state:", e);
+      }
+    } else if (data.startsWith('CLAIM_') && currentSlot) {
       if (data === 'CLAIM_SUCCESS') {
         const username = '@' + Telegram.WebApp.initDataUnsafe.user.username;
         currentSlot.querySelector('.username').textContent = username;
