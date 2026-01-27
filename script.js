@@ -78,31 +78,66 @@ document.addEventListener('DOMContentLoaded', () => {
     "Preston", "QPR", "Sheffield Wed"
   ];
 
-  // Load football grid
-  function loadFootballCard() {
-    const grid = document.getElementById('football-grid');
-    if (!grid) {
-      console.error("Football grid div missing, you idiot.");
-      return;
-    }
-    grid.innerHTML = '';
-    footballTeams.forEach(team => {
-      const slot = document.createElement('div');
-      slot.className = 'team-slot';
-      slot.innerHTML = `
-        <div>${team}</div>
-        <div class="username">[Pick Me]</div>
-      `;
-      slot.onclick = () => pickTeam(team, slot);
-      grid.appendChild(slot);
-    });
-  }
+function loadFootballCard() {
+  const grid = document.getElementById('football-grid');
+  if (!grid) return;
 
-  function pickTeam(team, slot) {
-    if (!confirm(`Claim ${team} for $1?`)) return;
-    const username = Telegram.WebApp.initDataUnsafe.user?.username || "You";
-    slot.querySelector('.username').textContent = `@${username}`;
-    slot.classList.add('claimed');
-    slot.onclick = null;
-  }
-});
+  // Fetch state from bot
+  Telegram.WebApp.sendData(JSON.stringify({ action: "get_card_state" }));
+
+  const handler = (event) => {
+    if (event.data.startsWith("CARD_STATE:")) {
+      const state = JSON.parse(event.data.split("CARD_STATE:")[1]);
+      renderFootballGrid(state);
+      Telegram.WebApp.offEvent('message', handler);
+    }
+  };
+
+  Telegram.WebApp.onEvent('message', handler);
+}
+
+function renderFootballGrid(state) {
+  const grid = document.getElementById('football-grid');
+  grid.innerHTML = '';
+
+  footballTeams.forEach(team => {
+    const claimedBy = state[team] || '[Pick Me]';
+    const slot = document.createElement('div');
+    slot.className = 'team-slot' + (claimedBy !== '[Pick Me]' ? ' claimed' : '');
+    slot.innerHTML = `
+      <div>${team}</div>
+      <div class="username">${claimedBy}</div>
+    `;
+
+    if (claimedBy === '[Pick Me]') {
+      slot.onclick = () => claimTeam(team, slot);
+    }
+
+    grid.appendChild(slot);
+  });
+}
+
+function claimTeam(team, slot) {
+  const username = '@' + (Telegram.WebApp.initDataUnsafe.user?.username || "You");
+
+  if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
+
+  Telegram.WebApp.sendData(JSON.stringify({
+    action: "claim_team",
+    team: team,
+    username: username
+  }));
+
+  const handler = (event) => {
+    if (event.data === "CLAIM_SUCCESS") {
+      slot.querySelector('.username').textContent = username;
+      slot.classList.add('claimed');
+      slot.onclick = null;
+    } else if (event.data.startsWith("CLAIM_DENIED")) {
+      alert(event.data);
+    }
+    Telegram.WebApp.offEvent('message', handler);
+  };
+
+  Telegram.WebApp.onEvent('message', handler);
+}
