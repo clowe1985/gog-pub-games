@@ -124,6 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
       currentSlot.onclick = null;
       currentSlot = null;
       currentUsername = null;
+      console.log("Claim success - UI updated");
     } else if (data.startsWith("CLAIM_DENIED")) {
       alert(data);
       currentSlot = null;
