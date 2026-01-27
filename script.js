@@ -61,9 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
     "Preston", "QPR", "Sheffield Wed"
   ];
 
-  let currentSlot = null;
-  let currentUsername = null;
-
   function loadFootballCard() {
     const grid = document.getElementById('football-grid');
     if (!grid) return console.error("Grid missing");
@@ -80,17 +77,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function pickTeam(team, slot) {
-    const user = Telegram?.WebApp?.initDataUnsafe?.user;
-    if (!user || !user.username)
+    const user = Telegram.WebApp.initDataUnsafe.user;
+    if (!user || !user.username) {
       alert("No username found.");
       return;
     }
-
     const username = '@' + user.username;
     if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
-
-    currentSlot = slot;
-    currentUsername = username;
 
     Telegram.WebApp.sendData(JSON.stringify({
       action: "claim_team",
@@ -98,9 +91,8 @@ document.addEventListener('DOMContentLoaded', () => {
       username: username
     }));
 
-    setTimeout(loadSavedClaims, 1200);
-
-    console.log(`Sent claim: ${team} → ${username}`);
+    setTimeout(loadSavedClaims, 1500);
+    console.log(`Claim sent: ${team} → ${username}`);
   }
 
   async function loadSavedClaims() {
@@ -120,8 +112,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  Telegram.WebApp.onEvent('message', (event) => {
+  Telegram.WebApp.onEvent('web_app_data', (event) => {
     const data = event.data;
     if (typeof data !== 'string') return;
-  }
+
+    if (data.startsWith("CARD_STATE:")) {
+      try {
+        const json = data.replace('CARD_STATE:', '');
+        const state = JSON.parse(json);
+        updateGrid(state.teams || state);
+      } catch (e) {
+        console.error("State parse error:", e);
+      }
+    }
+  });
 });
