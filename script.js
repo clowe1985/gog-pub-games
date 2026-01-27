@@ -118,12 +118,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const data = event.data;
     if (typeof data !== 'string') return;
 
-    if (data === "CLAIM_SUCCESS" && currentSlot) {
-      currentSlot.querySelector('.username').textContent = currentUsername;
-      currentSlot.classList.add('claimed');
-      currentSlot.onclick = null;
-
+    if (data === "CLAIM_SUCCESS") {
       console.log("Claim success - UI updated");
+      loadSavedClaims();
 
       currentSlot = null;
       currentUsername = null;
