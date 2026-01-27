@@ -81,7 +81,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function pickTeam(team, slot) {
     const user = Telegram?.WebApp?.initDataUnsafe?.user;
-    if (!user || !user.username) return alert("No username found.");
+    if (!user || !user.username)
+      alert("No username found.");
+      return;
+    }
+
     const username = '@' + user.username;
     if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
 
@@ -93,6 +97,8 @@ document.addEventListener('DOMContentLoaded', () => {
       team: team,
       username: username
     }));
+
+    setTimeout(loadSavedClaims, 1200);
 
     console.log(`Sent claim: ${team} → ${username}`);
   }
@@ -117,30 +123,5 @@ document.addEventListener('DOMContentLoaded', () => {
   Telegram.WebApp.onEvent('message', (event) => {
     const data = event.data;
     if (typeof data !== 'string') return;
-
-    if (data === "CLAIM_SUCCESS") {
-      console.log("Claim success - UI updated");
-      loadSavedClaims();
-
-      currentSlot = null;
-      currentUsername = null;
-    }
-
-    else if (data.startsWith("CLAIM_DENIED")) {
-      alert(data);
-      currentSlot = null;
-      currentUsername = null;
-    }
-
-    else if (data.startsWith("CARD_STATE:")) {
-      try {
-        const json = data.replace('CARD_STATE:', '');
-        const state = JSON.parse(json);
-        updateGrid(state.teams || state);
-      } catch (e) {
-        console.error("State parse error:", e);
-      }
-    }
-  });
-
+  }
 });
