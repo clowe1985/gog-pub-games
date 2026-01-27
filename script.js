@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const outside = document.getElementById('view-outside');
   const inside = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
+
   console.log("User from Telegram:", Telegram.WebApp.initDataUnsafe.user);
 
   // Force start on outside pub
@@ -40,21 +41,17 @@ document.addEventListener('DOMContentLoaded', () => {
   window.showGame = function(gameId) {
     const pub = document.getElementById('view-inside');
     pub.style.opacity = '0';
-
     setTimeout(() => {
       pub.style.display = 'none';
       pub.classList.remove('active');
-
       const gameScreen = document.getElementById('game-' + gameId);
       if (!gameScreen) {
         console.error("Game screen missing for", gameId);
         return;
       }
-
       gameScreen.style.display = 'block';
       gameScreen.classList.add('visible');
       gameScreen.style.opacity = '1';
-
       if (gameId === 'football') {
         loadFootballCard();
       }
@@ -66,13 +63,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.game-screen').forEach(screen => {
       screen.style.opacity = '0';
     });
-
     setTimeout(() => {
       document.querySelectorAll('.game-screen').forEach(screen => {
         screen.style.display = 'none';
         screen.classList.remove('visible');
       });
-
       inside.style.display = 'flex';
       inside.classList.add('active');
       inside.style.opacity = '1';
@@ -81,13 +76,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Football teams
   const footballTeams = [
-    "Arsenal", "Aston Villa", "Bournemouth", "Brentford", "Brighton", "Burnley",
+    "Arsenal", "Ajax", "Bournemouth", "Brentford", "Brighton", "Burnley",
     "Chelsea", "Crystal Palace", "Everton", "Fulham", "Liverpool", "Luton",
     "Man City", "Man United", "Newcastle", "Nottingham Forest", "Sheffield Utd",
     "Tottenham", "West Ham", "Wolves", "Leicester", "Leeds", "Southampton",
     "Blackburn", "Birmingham", "Coventry", "Ipswich", "Middlesbrough", "Norwich",
     "Preston", "QPR", "Sheffield Wed"
   ];
+
+  let currentSlot = null; // track slot being claimed
 
   // Load football card grid
   function loadFootballCard() {
@@ -96,9 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error("football-grid div missing - check HTML");
       return;
     }
-
     grid.innerHTML = ''; // clear old content
-
     footballTeams.forEach(team => {
       const slot = document.createElement('div');
       slot.className = 'team-slot';
@@ -109,7 +104,6 @@ document.addEventListener('DOMContentLoaded', () => {
       slot.onclick = () => pickTeam(team, slot);
       grid.appendChild(slot);
     });
-
     console.log("Football grid loaded - 32 teams ready");
   }
 
@@ -120,16 +114,40 @@ document.addEventListener('DOMContentLoaded', () => {
       alert("No username found. Can't claim.");
       return;
     }
-
     const username = '@' + user.username;
 
     if (!confirm(`Claim ${team} for $1 as ${username}?`)) return;
 
-    slot.querySelector('.username').textContent = username;
-    slot.classList.add('claimed');
-    slot.onclick = null;
+    currentSlot = slot; // remember which slot to update on success
 
-    console.log(`Claimed ${team} by ${username}`);
-    // Later: send to bot for real wallet check & group announcement
+    Telegram.WebApp.sendData(JSON.stringify({
+      action: "claim_team",
+      team: team,
+      username: username
+    }));
+
+    console.log(`Sent claim for ${team} by ${username}`);
   }
+
+  // Listen for bot reply
+  Telegram.WebApp.onEvent('web_app_data', (event) => {
+    const data = event.data;
+    if (!data || typeof data !== 'string') return;
+
+    if (data.startsWith('CLAIM_')) {
+      if (data === 'CLAIM_SUCCESS' && currentSlot) {
+        const usernameDiv = currentSlot.querySelector('.username');
+        const username = usernameDiv.textContent; // already set earlier for display
+        usernameDiv.textContent = username; // redundant but safe
+        currentSlot.classList.add('claimed');
+        currentSlot.onclick = null;
+        alert('Team claimed! 🎉');
+        currentSlot = null;
+      } else {
+        const reason = data.split(':')[1]?.trim() || 'Unknown error';
+        alert('Claim failed: ' + reason);
+        currentSlot = null;
+      }
+    }
+  });
 });
