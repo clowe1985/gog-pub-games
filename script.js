@@ -100,10 +100,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateGrid(claims) {
+    console.log(">>> DEBUG: Updating grid with claims:", claims);
+
     const slots = document.querySelectorAll('.team-slot');
     slots.forEach(slot => {
       const team = slot.querySelector('div:first-child').textContent.trim();
       const claimed = claims[team];
+
+      console.log('>>> DEBUG: Team ${team} = ${claimed}');
+
       if (claimed) {
         slot.querySelector('.username').textContent = claimed;
         slot.classList.add('claimed');
