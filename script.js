@@ -86,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function pickTeam(team, slot) {
+    console.log("pickTeam called for", team);
     const user = Telegram.WebApp.initDataUnsafe.user;
     if (!user || !user.username) {
       alert("No username found.");
