@@ -35,12 +35,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const tgUser = Telegram.WebApp.initDataUnsafe?.user;
-    if (!tgUser) {
-      alert("Telegram hasn’t handed over your data yet. Try again.");
-      return;
-    }
-
     Telegram.WebApp.sendData(JSON.stringify({
       action: "enter_pub"
     }));
