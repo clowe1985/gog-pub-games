@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log(">>> WebApp version:", Telegram.WebApp.version);
       console.log(">>> Init Data:", Telegram.WebApp.initData);
       console.log(">>> User:", Telegram.WebApp.initDataUnsafe.user);
+      console.log("⚡ Telegram SDK:", window.Telegram?.WebApp ? "LOADED" : "MISSING");
+      console.log("📥 sendData function:", typeof Telegram?.WebApp?.sendData === "function" ? "OK" : "NO");
   }
 
   // View elements
@@ -110,6 +112,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Pick a team
   function pickTeam(team, slot) {
+    console.log(" Click Registered");
+    Telegram.WebApp.sendData9JSON.stringify({
+      action: "claim_team",
+      team: team,
+      username: username
+    }));
+    console.log(" Data Sent");
     const user = Telegram.WebApp.initDataUnsafe.user;
 
     // Check if user has Telegram username
