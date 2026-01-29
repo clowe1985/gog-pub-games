@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+  // Force redeploy 2025-01-29
   console.log(">>> SCRIPT LOADED");
 
   const outside = document.getElementById('view-outside');
