@@ -5,9 +5,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const inside = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
 
-  let hasEnteredPub = false;
-
-  // Initial view state
+  // ===============================
+  // INITIAL VIEW STATE
+  // ===============================
   outside.style.display = 'flex';
   outside.classList.add('active');
   outside.style.opacity = '1';
@@ -16,26 +16,29 @@ document.addEventListener('DOMContentLoaded', () => {
   inside.classList.remove('active');
   inside.style.opacity = '0';
 
-  // Hide all game screens
   document.querySelectorAll('.game-screen').forEach(s => {
     s.style.display = 'none';
     s.classList.remove('visible');
     s.style.opacity = '0';
   });
 
-  // Telegram init
+  // ===============================
+  // TELEGRAM INIT
+  // ===============================
   if (window.Telegram?.WebApp) {
     Telegram.WebApp.ready();
     Telegram.WebApp.expand();
   }
 
-  // Enter pub handler
+  // ===============================
+  // ENTER PUB BUTTON
+  // ===============================
   enterBtn.addEventListener('click', () => {
     if (!Telegram?.WebApp) return;
 
-    const user = Telegram.WebApp.initDataUnsafe.user;
+    const user = Telegram.WebApp.initDataUnsafe?.user;
     if (!user) {
-      alert("Open this insde Telegram, genius.");
+      alert("Open this inside Telegram, you absolute menace.");
       return;
     }
 
@@ -44,31 +47,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
   });
 
-    // Notify bot user has entered pub
-    try {
-      Telegram.WebApp.sendData(JSON.stringify({
-        action: 'enter_pub'
-      }));
-    } catch (e) {
-      // If Telegram throws a tantrum, still let them in
-    }
-
-    outside.style.opacity = '0';
-
-    setTimeout(() => {
-      outside.style.display = 'none';
-      outside.classList.remove('active');
-
-      inside.style.display = 'flex';
-      inside.classList.add('active');
-      inside.style.opacity = '1';
-    }, 1200);
-  });
-
-  // Show game screen
+  // ===============================
+  // GAME NAVIGATION
+  // ===============================
   window.showGame = function (gameId) {
     if (!window.PUB_USER) {
-      alert("Enter the pub first. Door's right there.");
+      alert("Enter the pub first. The door isn’t decorative.");
       return;
     }
 
@@ -76,20 +60,20 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
       inside.style.display = 'none';
       inside.classList.remove('active');
+
       const screen = document.getElementById('game-' + gameId);
       if (!screen) return;
+
       screen.style.display = 'block';
       screen.classList.add('visible');
       screen.style.opacity = '1';
+
       if (gameId === 'football') loadFootballCard();
     }, 800);
   };
 
-  // Back to pub
   window.backToPub = function () {
-    document.querySelectorAll('.game-screen').forEach(s => {
-      s.style.opacity = '0';
-    });
+    document.querySelectorAll('.game-screen').forEach(s => s.style.opacity = '0');
 
     setTimeout(() => {
       document.querySelectorAll('.game-screen').forEach(s => {
@@ -103,14 +87,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 800);
   };
 
-  // ===== FOOTBALL CARD =====
+  // ===============================
+  // FOOTBALL CARD
+  // ===============================
   const footballTeams = [
-    "Arsenal", "Ajax", "Bournemouth", "Brentford", "Brighton", "Burnley",
-    "Chelsea", "Crystal Palace", "Everton", "Fulham", "Liverpool", "Luton",
-    "Man City", "Man United", "Newcastle", "Nottingham Forest", "Sheffield Utd",
-    "Tottenham", "West Ham", "Wolves", "Leicester", "Leeds", "Southampton",
-    "Blackburn", "Birmingham", "Coventry", "Ipswich", "Middlesbrough", "Norwich",
-    "Preston", "QPR", "Sheffield Wed"
+    "Arsenal","Ajax","Bournemouth","Brentford","Brighton","Burnley",
+    "Chelsea","Crystal Palace","Everton","Fulham","Liverpool","Luton",
+    "Man City","Man United","Newcastle","Nottingham Forest","Sheffield Utd",
+    "Tottenham","West Ham","Wolves","Leicester","Leeds","Southampton",
+    "Blackburn","Birmingham","Coventry","Ipswich","Middlesbrough","Norwich",
+    "Preston","QPR","Sheffield Wed"
   ];
 
   function loadFootballCard() {
@@ -135,9 +121,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function pickTeam(team, slot) {
     const user = Telegram.WebApp.initDataUnsafe?.user;
-
     if (!user || !user.username) {
-      alert('You need a Telegram username to play.');
+      alert("Set a Telegram username first.");
       return;
     }
 
@@ -146,28 +131,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!confirm(`Claim ${team} for $1 USDC as ${username}?`)) return;
 
     slot.style.opacity = '0.7';
-    slot.querySelector('.username').textContent = 'Processing...';
+    slot.querySelector('.username').textContent = 'Processing…';
     slot.style.pointerEvents = 'none';
 
-    try {
-      Telegram.WebApp.sendData(JSON.stringify({
-        action: 'pickteam_web',
-        team,
-        username,
-        user_id: user.id
-      }));
-
-      setTimeout(requestCardState, 2000);
-    } catch (e) {
-      slot.style.opacity = '1';
-      slot.querySelector('.username').textContent = '[Pick Me]';
-      slot.style.pointerEvents = 'auto';
-    }
+    Telegram.WebApp.sendData(JSON.stringify({
+      action: "pickteam_web",
+      team: team,
+      username: username,
+      user_id: user.id
+    }));
   }
 
   function requestCardState() {
     Telegram.WebApp.sendData(JSON.stringify({
-      action: 'get_card_state'
+      action: "get_card_state"
     }));
   }
 
@@ -190,62 +167,45 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ===============================
+  // BOT RESPONSES
+  // ===============================
   Telegram.WebApp.onEvent('web_app_data', event => {
     const data = event.data;
-    if (typeof event.data !== 'string') return;
+    if (typeof data !== 'string') return;
 
-    // =====================================
-    // ENTER PUB RESPONSE
-    // =====================================
-    if (data.startWith("ENTER_OK:")) {
-      const payload = JSON.parse(data.replace("ENTER_OK:", ""));
+    if (data.startsWith("ENTER_OK:")) {
+      window.PUB_USER = JSON.parse(data.replace("ENTER_OK:", ""));
 
-    // Optional: store for later UI use
-    window.PUB_USER = payload;
+      outside.style.opacity = '0';
+      setTimeout(() => {
+        outside.style.display = 'none';
+        outside.classList.remove('active');
 
-    // Now allow entry animation
-    outside.style.opacity = '0';
-    setTimeout(() => {
-      outside.style.display = 'none';
-      outside.classList.remove('active');
-      inside.style.display = 'flex';
-      inside.classList.add('active');
-      inside.style.opacity = '1';
-    }, 800);
-
-    return;
-  }
-
-  if (data === "ENTER_DENIED:NO_USERNAME") {
-    alert("set a Telegram usrname first. I'm not psychic.");
-    return;
-  }
-
-  if (data === "ENTER_DENIED:NO_WALLET") {
-    alert("No wallet found.\nDM the bot with /start and create one.");
-    return;
-  }
-
-    if (event.data.startsWith('CARD_STATE:')) {
-      try {
-        const state = JSON.parse(event.data.replace('CARD_STATE:', ''));
-
-        if (state.entries) {
-          const claims = {};
-          footballTeams.forEach(team => {
-            claims[team] = state.entries[team]
-              ? '@' + state.entries[team].username
-              : null;
-          });
-          updateGrid(claims);
-        } else {
-          updateGrid(state);
-        }
-      } catch (_) {}
+        inside.style.display = 'flex';
+        inside.classList.add('active');
+        inside.style.opacity = '1';
+      }, 800);
+      return;
     }
 
-    if (event.data.includes('❌') || event.data.includes('DENIED')) {
-      alert(event.data);
+    if (data === "ENTER_DENIED:NO_USERNAME") {
+      alert("Set a Telegram username first.");
+      return;
+    }
+
+    if (data === "ENTER_DENIED:NO_WALLET") {
+      alert("No wallet found. DM the bot with /start.");
+      return;
+    }
+
+    if (data.startsWith("CARD_STATE:")) {
+      const state = JSON.parse(data.replace("CARD_STATE:", ""));
+      updateGrid(state);
+    }
+
+    if (data.includes("DENIED") || data.includes("❌")) {
+      alert(data);
       requestCardState();
     }
   });
