@@ -112,13 +112,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Pick a team
   function pickTeam(team, slot) {
-    console.log(" Click Registered");
-    Telegram.WebApp.sendData9JSON.stringify({
-      action: "claim_team",
-      team: team,
-      username: username
-    }));
-    console.log(" Data Sent");
     const user = Telegram.WebApp.initDataUnsafe.user;
 
     // Check if user has Telegram username
@@ -126,6 +119,15 @@ document.addEventListener('DOMContentLoaded', () => {
       alert("❌ No Telegram username found!\n\nPlease set a username in your Telegram settings:\n1. Open Telegram\n2. Go to Settings\n3. Set a Username\n4. Try again");
       return;
     }
+
+    console.log(" Click Registered");
+    Telegram.WebApp.sendData(JSON.stringify({
+      action: "claim_team",
+      team: team,
+      username: username
+    }));
+    console.log(" Data Sent");
+  }
 
     const username = '@' + user.username;
 
