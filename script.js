@@ -5,9 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const inside = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
 
-  // ===============================
-  // INITIAL VIEW STATE
-  // ===============================
+  // Initial state
   outside.style.display = 'flex';
   outside.classList.add('active');
   outside.style.opacity = '1';
@@ -22,23 +20,24 @@ document.addEventListener('DOMContentLoaded', () => {
     s.style.opacity = '0';
   });
 
-  // ===============================
-  // TELEGRAM INIT
-  // ===============================
+  // Telegram init
   if (window.Telegram?.WebApp) {
     Telegram.WebApp.ready();
     Telegram.WebApp.expand();
   }
 
   // ===============================
-  // ENTER PUB BUTTON
+  // ENTER PUB (ONE TIME)
   // ===============================
   enterBtn.addEventListener('click', () => {
-    if (!Telegram?.WebApp) return;
+    if (!window.Telegram?.WebApp) {
+      alert("This only works inside Telegram.");
+      return;
+    }
 
-    const user = Telegram.WebApp.initDataUnsafe?.user;
-    if (!user) {
-      alert("Open this inside Telegram, you absolute menace.");
+    const tgUser = Telegram.WebApp.initDataUnsafe?.user;
+    if (!tgUser) {
+      alert("Telegram hasn’t handed over your data yet. Try again.");
       return;
     }
 
@@ -48,11 +47,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ===============================
-  // GAME NAVIGATION
+  // SHOW GAME
   // ===============================
   window.showGame = function (gameId) {
     if (!window.PUB_USER) {
-      alert("Enter the pub first. The door isn’t decorative.");
+      alert("Enter the pub first.");
       return;
     }
 
@@ -73,7 +72,9 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   window.backToPub = function () {
-    document.querySelectorAll('.game-screen').forEach(s => s.style.opacity = '0');
+    document.querySelectorAll('.game-screen').forEach(s => {
+      s.style.opacity = '0';
+    });
 
     setTimeout(() => {
       document.querySelectorAll('.game-screen').forEach(s => {
@@ -121,30 +122,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function pickTeam(team, slot) {
     const user = Telegram.WebApp.initDataUnsafe?.user;
-    if (!user || !user.username) {
+    if (!user?.username) {
       alert("Set a Telegram username first.");
       return;
     }
 
-    const username = '@' + user.username;
+    if (!confirm(`Claim ${team} for $1 USDC as @${user.username}?`)) return;
 
-    if (!confirm(`Claim ${team} for $1 USDC as ${username}?`)) return;
-
-    slot.style.opacity = '0.7';
-    slot.querySelector('.username').textContent = 'Processing…';
+    slot.style.opacity = '0.6';
+    slot.querySelector('.username').textContent = 'Processing...';
     slot.style.pointerEvents = 'none';
 
     Telegram.WebApp.sendData(JSON.stringify({
-      action: "pickteam_web",
-      team: team,
-      username: username,
-      user_id: user.id
+      action: 'pickteam_web',
+      team
     }));
+
+    setTimeout(requestCardState, 2000);
   }
 
   function requestCardState() {
     Telegram.WebApp.sendData(JSON.stringify({
-      action: "get_card_state"
+      action: 'get_card_state'
     }));
   }
 
@@ -156,14 +155,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (claimed) {
         slot.querySelector('.username').textContent = claimed;
         slot.classList.add('claimed');
-        slot.onclick = null;
         slot.style.pointerEvents = 'none';
-        slot.style.opacity = '1';
       } else {
         slot.querySelector('.username').textContent = '[Pick Me]';
         slot.style.pointerEvents = 'auto';
-        slot.style.opacity = '1';
       }
+      slot.style.opacity = '1';
     });
   }
 
@@ -171,11 +168,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // BOT RESPONSES
   // ===============================
   Telegram.WebApp.onEvent('web_app_data', event => {
-    const data = event.data;
-    if (typeof data !== 'string') return;
+    if (typeof event.data !== 'string') return;
 
-    if (data.startsWith("ENTER_OK:")) {
-      window.PUB_USER = JSON.parse(data.replace("ENTER_OK:", ""));
+    if (event.data.startsWith("ENTER_OK:")) {
+      const payload = JSON.parse(event.data.replace("ENTER_OK:", ""));
+      window.PUB_USER = payload;
 
       outside.style.opacity = '0';
       setTimeout(() => {
@@ -189,24 +186,19 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (data === "ENTER_DENIED:NO_USERNAME") {
+    if (event.data === "ENTER_DENIED:NO_USERNAME") {
       alert("Set a Telegram username first.");
       return;
     }
 
-    if (data === "ENTER_DENIED:NO_WALLET") {
+    if (event.data === "ENTER_DENIED:NO_WALLET") {
       alert("No wallet found. DM the bot with /start.");
       return;
     }
 
-    if (data.startsWith("CARD_STATE:")) {
-      const state = JSON.parse(data.replace("CARD_STATE:", ""));
+    if (event.data.startsWith("CARD_STATE:")) {
+      const state = JSON.parse(event.data.replace("CARD_STATE:", ""));
       updateGrid(state);
-    }
-
-    if (data.includes("DENIED") || data.includes("❌")) {
-      alert(data);
-      requestCardState();
     }
   });
 });
