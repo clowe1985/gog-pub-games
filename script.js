@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+  window.PUB_USER = null;
+
   const outside = document.getElementById('view-outside');
   const inside = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
@@ -29,10 +31,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Enter pub handler
   enterBtn.addEventListener('click', () => {
-    if (hasEnteredPub) return;
-    hasEnteredPub = true;
+    if (!Telegram?.WebApp) return;
 
-    enterBtn.style.pointerEvents = 'none';
+    const user = Telegram.WebApp.initDataUnsafe.user;
+    if (!user) {
+      alert("Open this insde Telegram, genius.");
+      return;
+    }
+
+    Telegram.WebApp.sendData(JSON.stringify({
+      action: "enter_pub"
+    }));
+  });
 
     // Notify bot user has entered pub
     try {
@@ -57,19 +67,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Show game screen
   window.showGame = function (gameId) {
-    inside.style.opacity = '0';
+    if (!window.PUB_USER) {
+      alert("Enter the pub first. Door's right there.");
+      return;
+    }
 
+    inside.style.opacity = '0';
     setTimeout(() => {
       inside.style.display = 'none';
       inside.classList.remove('active');
-
       const screen = document.getElementById('game-' + gameId);
       if (!screen) return;
-
       screen.style.display = 'block';
       screen.classList.add('visible');
       screen.style.opacity = '1';
-
       if (gameId === 'football') loadFootballCard();
     }, 800);
   };
@@ -180,7 +191,40 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   Telegram.WebApp.onEvent('web_app_data', event => {
+    const data = event.data;
     if (typeof event.data !== 'string') return;
+
+    // =====================================
+    // ENTER PUB RESPONSE
+    // =====================================
+    if (data.startWith("ENTER_OK:")) {
+      const payload = JSON.parse(data.replace("ENTER_OK:", ""));
+
+    // Optional: store for later UI use
+    window.PUB_USER = payload;
+
+    // Now allow entry animation
+    outside.style.opacity = '0';
+    setTimeout(() => {
+      outside.style.display = 'none';
+      outside.classList.remove('active');
+      inside.style.display = 'flex';
+      inside.classList.add('active');
+      inside.style.opacity = '1';
+    }, 800);
+
+    return;
+  }
+
+  if (data === "ENTER_DENIED:NO_USERNAME") {
+    alert("set a Telegram usrname first. I'm not psychic.");
+    return;
+  }
+
+  if (data === "ENTER_DENIED:NO_WALLET") {
+    alert("No wallet found.\nDM the bot with /start and create one.");
+    return;
+  }
 
     if (event.data.startsWith('CARD_STATE:')) {
       try {
