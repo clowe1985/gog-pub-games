@@ -1,0 +1,5 @@
+gogenv/
+venv/
+__pycache__/
+*.pyc
+*.so
