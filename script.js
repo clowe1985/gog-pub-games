@@ -1,44 +1,23 @@
 document.addEventListener('DOMContentLoaded', () => {
+  // ===============================
+  // GLOBAL STATE
+  // ===============================
   window.PUB_USER = null;
 
   const outside = document.getElementById('view-outside');
   const inside = document.getElementById('view-inside');
   const enterBtn = document.getElementById('enter-btn');
 
-  // ---------------------------------
-  // TELEGRAM INIT (FIRST)
-  // ---------------------------------
-  if (!window.Telegram?.WebApp) {
-    alert("Open this inside Telegram.");
-    return;
-  }
+  // ===============================
+  // INITIAL VIEW STATE
+  // ===============================
+  outside.style.display = 'flex';
+  outside.classList.add('active');
+  outside.style.opacity = '1';
 
-  Telegram.WebApp.ready();
-  Telegram.WebApp.expand();
-
-  const startParam = Telegram.WebApp.initDataUnsafe?.start_param || null;
-
-  // ---------------------------------
-  // DEFAULT VIEW STATE
-  // ---------------------------------
-  function showOutside() {
-    outside.style.display = 'flex';
-    outside.classList.add('active');
-    outside.style.opacity = '1';
-
-    inside.style.display = 'none';
-    inside.classList.remove('active');
-    inside.style.opacity = '0';
-  }
-
-  function showInside() {
-    outside.style.display = 'none';
-    outside.classList.remove('active');
-
-    inside.style.display = 'flex';
-    inside.classList.add('active');
-    inside.style.opacity = '1';
-  }
+  inside.style.display = 'none';
+  inside.classList.remove('active');
+  inside.style.opacity = '0';
 
   document.querySelectorAll('.game-screen').forEach(s => {
     s.style.display = 'none';
@@ -46,36 +25,32 @@ document.addEventListener('DOMContentLoaded', () => {
     s.style.opacity = '0';
   });
 
-  // ---------------------------------
-  // HANDLE ENTER RESPONSE
-  // ---------------------------------
-  if (startParam && startParam.startsWith("ENTER_OK:")) {
-    try {
-      const payload = JSON.parse(startParam.replace("ENTER_OK:", ""));
-      window.PUB_USER = payload;
-      showInside();
-    } catch (e) {
-      showOutside();
-    }
-  } else {
-    showOutside();
+  // ===============================
+  // TELEGRAM INIT
+  // ===============================
+  if (!window.Telegram || !Telegram.WebApp) {
+    alert("This only works inside Telegram. Shockingly.");
+    return;
   }
 
-  // ---------------------------------
-  // ENTER PUB BUTTON
-  // ---------------------------------
+  Telegram.WebApp.ready();
+  Telegram.WebApp.expand();
+
+  // ===============================
+  // ENTER PUB
+  // ===============================
   enterBtn.addEventListener('click', () => {
     Telegram.WebApp.sendData(JSON.stringify({
       action: "enter_pub"
     }));
   });
 
-  // ---------------------------------
-  // SHOW GAME
-  // ---------------------------------
+  // ===============================
+  // GAME NAVIGATION
+  // ===============================
   window.showGame = function (gameId) {
     if (!window.PUB_USER) {
-      alert("Enter the pub first.");
+      alert("Enter the pub first. Door’s not decorative.");
       return;
     }
 
@@ -93,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
       screen.style.opacity = '1';
 
       if (gameId === 'football') loadFootballCard();
-    }, 600);
+    }, 800);
   };
 
   window.backToPub = function () {
@@ -107,13 +82,15 @@ document.addEventListener('DOMContentLoaded', () => {
         s.classList.remove('visible');
       });
 
-      showInside();
-    }, 600);
+      inside.style.display = 'flex';
+      inside.classList.add('active');
+      inside.style.opacity = '1';
+    }, 800);
   };
 
-  // ---------------------------------
+  // ===============================
   // FOOTBALL CARD
-  // ---------------------------------
+  // ===============================
   const footballTeams = [
     "Arsenal","Ajax","Bournemouth","Brentford","Brighton","Burnley",
     "Chelsea","Crystal Palace","Everton","Fulham","Liverpool","Luton",
@@ -145,8 +122,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function pickTeam(team, slot) {
     const user = Telegram.WebApp.initDataUnsafe?.user;
-    if (!user?.username) {
-      alert("Set a Telegram username first.");
+
+    if (!user || !user.username) {
+      alert("Set a Telegram username first. I don’t guess.");
       return;
     }
 
@@ -158,10 +136,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     Telegram.WebApp.sendData(JSON.stringify({
       action: 'pickteam_web',
-      team
+      team: team
     }));
 
-    setTimeout(requestCardState, 1500);
+    setTimeout(requestCardState, 2000);
   }
 
   function requestCardState() {
@@ -183,7 +161,61 @@ document.addEventListener('DOMContentLoaded', () => {
         slot.querySelector('.username').textContent = '[Pick Me]';
         slot.style.pointerEvents = 'auto';
       }
+
       slot.style.opacity = '1';
     });
   }
+
+  // ===============================
+  // BOT RESPONSES
+  // ===============================
+  Telegram.WebApp.onEvent('web_app_data', event => {
+    if (typeof event.data !== 'string') return;
+
+    // ----- ENTER PUB OK -----
+    if (event.data.startsWith("ENTER_OK:")) {
+      window.PUB_USER = JSON.parse(
+        event.data.replace("ENTER_OK:", "")
+      );
+
+      outside.style.opacity = '0';
+
+      setTimeout(() => {
+        outside.style.display = 'none';
+        outside.classList.remove('active');
+
+        inside.style.display = 'flex';
+        inside.classList.add('active');
+        inside.style.opacity = '1';
+      }, 800);
+
+      return;
+    }
+
+    // ----- ENTRY DENIED -----
+    if (event.data === "ENTER_DENIED:NO_USERNAME") {
+      alert("Set a Telegram username first.");
+      return;
+    }
+
+    if (event.data === "ENTER_DENIED:NO_WALLET") {
+      alert("No wallet found. DM the bot with /start.");
+      return;
+    }
+
+    // ----- CARD STATE -----
+    if (event.data.startsWith("CARD_STATE:")) {
+      const state = JSON.parse(
+        event.data.replace("CARD_STATE:", "")
+      );
+      updateGrid(state);
+      return;
+    }
+
+    // ----- ERRORS -----
+    if (event.data.includes("DENIED") || event.data.includes("❌")) {
+      alert(event.data);
+      requestCardState();
+    }
+  });
 });
