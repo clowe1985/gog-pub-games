@@ -1,0 +1,478 @@
+#!/usr/bin/env python3
+# Grumpy George (GOG) v1.3 — merged version
+
+import os
+import re
+import time
+import random
+import asyncio
+import logging
+from ai_brain import grumpy_reply
+from collections import deque
+from datetime import datetime, timedelta
+
+import feedparser
+import httpx
+
+from telegram import (
+    Update, InlineKeyboardMarkup, InlineKeyboardButton, ChatMember
+)
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler,
+    ContextTypes, filters
+)
+
+# -----------------------------
+# Configuration (edit below)
+# -----------------------------
+BOT_TOKEN = "8000468938:AAGy_DU4CfEF2vD1y0LPQYH3Uc4gQpFgpVY"
+WEBSITE_URL = "https://officialgogcoin.com/"
+X_URL = "https://x.com/OfficialGOGCoin?t=56L6aZxiHiDrm5f5OTDdhQ&s=09"
+COOLDOWN_SECONDS = 30  # seconds between info replies
+LINK_REGEX = re.compile(r"(https?://\S+|www\.\S+)", re.IGNORECASE)
+
+import tweepy
+
+# === X API Credentials ===
+BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAAFwD5AEAAAAAQasb2PPox%2BmaTwARgw1%2Fiq%2B8pBw%3DWIgA0e65IzeP2t3ky18KE8flr3FhZdNOZD4jmBGF0BP2HbI7EX"
+
+# === Twitter config ===
+TWITTER_HANDLE = "OfficialGOGCoin"
+
+# -----------------------------
+# Logging
+# -----------------------------
+logging.basicConfig(
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    level=logging.INFO,
+)
+logger = logging.getLogger("grumpy_george")
+
+# -----------------------------
+# Personality & messages
+# -----------------------------
+GRUMPY_REPLIES = [ "What do you want now?", "You again? Buy me a pint first.", "Speak up, I can’t hear you over all the hype.", "I’m not your therapist — go talk to your wallet.", "Still old, still grumpy, still right.", "Ask me after coffee. Or never.", "Back in my day we had fewer questions and more profit.", "You tag me, I charge interest.", "I’ve got slippers older than your portfolio.", "If it’s not about $GOG, move along.", "I read your tag — didn’t enjoy it.", "You brought opinions but left facts at home.", "That better be important. It wasn’t? Thought so.", "Put some respect on it, lad.", "I’d clap back harder, but I might pull a hip.", "Bother me again and I’ll short your optimism.", "Use fewer words. My patience has decimals: 0.", "Tread lightly. I woke up on the wrong decade.", "I’ve seen healthier charts on a heart monitor.", "Ask yourself: ‘does George care?’ The answer is no.", "I’ve had more fun reading tax forms.", "If common sense was a token, you’d be illiquid.", "Not now. I’m busy not trusting the market.", "I don’t do hopium. I do sarcasm.", "You call that alpha? That’s diet rumor.", "Tagging me won’t pump your bags, sunshine.", "I’d tell you a secret, but you’d tweet it.", "When I want noise, I’ll open Twitter.", "If it sounds too good, it is.", "Less moon talk, more execution.", "My patience is a support line: already broken.", "Cute question. Shame about the logic.", "I’d answer, but you won’t listen.", "Don’t test me. I fail people for sport.", "Come back when your chart stops crying.", "I don’t give ‘NFA’. I give ‘NAH’.", "Mixed feelings? I prefer mixed drinks.", "Yes. No. Maybe. There. Fully transparent.", "You want validation; I offer evaluation.", "I see confusion is trending again.", "Short answer: no. Long answer: absolutely not.", "I admire your enthusiasm. Pity about the timing.", "You call it ‘strategy’; I call it copium.", "Please, keep stacking excuses.", "Try thinking. It’s like leverage but safer.", "If I had a nickel for every bad take… I’d buy the dip.", "Markets don’t care about feelings. Neither do I.", "Ask the chart. I’m retired from caring.", "That’s your plan? I’ve seen better rugs.", "Save the tag. Spend the effort.", ]
+
+ROASTS = [ "You trade like you’ve got oven mitts on.", "I’ve seen garden gnomes with more ambition.", "Back in my day even scams had standards.", "Your risk management is just wishing.", "You’re a buy-high, sell-low specialist.", "You FOMO’d so hard you left your wallet behind.", "Your stop loss is pure imagination.", "You call that TA? That’s abstract art.", "I’ve seen sturdier hands on a jellyfish.", "You set alerts just to snooze them.", "Your edge is a circle.", "You could rug a picnic blanket.", "If patience was a token you’d be bankrupt.", "You chase green candles like moths to a flame.", "Your DCA is just ‘Desperate Candle Addition’.", "You call it a thesis; it’s a diary of delusions.", "You hold conviction like a wet paper bag.", "You’d front-run a bus… from behind.", "I’ve seen bots with more personality and better PnL.", "You buy resistance and sell support. Iconic.", "Your alpha leaks faster than your conviction.", "The only thing you accumulate is regrets.", "Even your memes are illiquid.", "You couldn’t find liquidity with a map.", "You average down until the floor gives up.", "Your indicators point to ‘cope’.", "You do research by reading replies.", "You think ‘locked LP’ means locked expectations.", "You call that utility? It’s a coaster.", "Your plan is ‘vibes and vibes alone’.", "You need a mentor. Or a mirror.", "You’d sell the top if it was the bottom.", "If hopium paid, you’d be a whale.","Your backtest was a bedtime story.", "Diversified? You own ten of the same mistake.", "You chart with crayons.", "You long anxiety and short sleep.", "You’d get front-run by a turtle.", "If patience was APR, you’d earn 0%.", "Your ‘research’ is just recycled cope.", "You trust influencers with unverified eyebrows.", "You ape like the barrel is on fire.", "You ‘secure profits’ by imagining them.", "Liquidations fear your portfolio out of pity.", "You could misclick a hardware wallet.", "Your slippage tolerance is your personality.", "You ‘nibble the dip’ and choke on fees.", "You hold like a windy plastic bag.", "Even rugs avoid you out of respect.", "You don’t miss opportunities—opportunities miss you.", ]
+
+WELCOME_ROASTS = [ "Fine, you’re in. Don’t make me regret it.", "Verified. Try not to trip over your own bags.", "Human detected. Barely.", "You passed. Standards are low today.", "Alright, sit down and don’t touch anything.", "Great, another genius. Park yourself.", "Welcome. Now behave or be gone.", "Okay, okay — just don’t spam.", ]
+
+# -----------------------------
+# Runtime state / constants
+# -----------------------------
+SPAM_TRACK = {}  # for anti-spam
+SPAM_WINDOW_SECONDS = 5
+SPAM_MAX_MSGS = 3
+LINK_WARN = {}
+PENDING_CAPTCHAS = {}
+
+LAST_TWEETS = set()
+TWITTER_CHECK_INTERVAL = 10800  # 3 hours (in seconds)
+
+import random
+TWITTER_INTERVAL_VARIATION = random.randint(-600, 600)  # ±10 minutes
+
+
+# Info-reply cooldown
+last_info_reply = datetime.min
+bot_muted = False
+
+# -----------------------------
+# Helpers
+# -----------------------------
+async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    try:
+        cm = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
+        return cm.status in (ChatMember.ADMINISTRATOR, ChatMember.OWNER)
+    except Exception:
+        return False
+
+def contains_url(text: str) -> bool:
+    return bool(LINK_REGEX.search(text or ""))
+
+def mark_spam(chat_id: int, user_id: int) -> int:
+    now = time.time()
+    chat_bucket = SPAM_TRACK.setdefault(chat_id, {})
+    u = chat_bucket.setdefault(user_id, {"times": deque(), "strikes": 0})
+    dq = u["times"]
+    dq.append(now)
+    while dq and now - dq[0] > SPAM_WINDOW_SECONDS:
+        dq.popleft()
+    return len(dq)
+
+def inc_strike(chat_id: int, user_id: int) -> int:
+    chat_bucket = SPAM_TRACK.setdefault(chat_id, {})
+    u = chat_bucket.setdefault(user_id, {"times": deque(), "strikes": 0})
+    u["strikes"] += 1
+    return u["strikes"]
+
+def reset_user_spam(chat_id: int, user_id: int):
+    chat_bucket = SPAM_TRACK.setdefault(chat_id, {})
+    chat_bucket[user_id] = {"times": deque(), "strikes": 0}
+
+# -----------------------------
+# Commands
+# -----------------------------
+async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Oi, it’s Grumpy George here! What do you want? 😠")
+    print(f"Chat ID: {update.effective_chat.id}")
+
+async def roast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(random.choice(ROASTS))
+
+async def website_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"Grumpy’s lair: {WEBSITE_URL}")
+
+async def x_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"Our X: {X_URL}")
+
+async def shutup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global bot_muted
+    if not await is_admin(update, context):
+        await update.message.reply_text("You’re not the boss of me. 😠")
+        return
+    bot_muted = True
+    await update.message.reply_text("Fine, I’ll keep my mouth shut. 😶")
+
+async def speak(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global bot_muted
+    if not await is_admin(update, context):
+        await update.message.reply_text("You can’t tell me what to do. 😠")
+        return
+    bot_muted = False
+    await update.message.reply_text("Right, I’m back. What did I miss? 😏")
+
+# -----------------------------
+# New Link Moderation: only admins can post links
+# -----------------------------
+async def link_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text:
+        return
+    text = update.message.text.strip()
+    if update.message.from_user.is_bot or text.startswith("/"):
+        return
+
+    if contains_url(text):
+        if await is_admin(update, context):
+            return
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+        await context.bot.send_message(update.effective_chat.id,
+            f"{update.effective_user.mention_html()} — only admins can share links. 😠",
+            parse_mode="HTML"
+        )
+
+# -----------------------------
+# Mention-based info replies (website / x) with cooldown
+# -----------------------------
+async def mention_autoreply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global last_info_reply, bot_muted
+    if bot_muted:
+        return
+    if not update.message or not update.message.text:
+        return
+
+    text = (update.message.text or "").lower()
+    bot_user = (await context.bot.get_me()).username.lower()
+    if f"@{bot_user}" not in text:
+        return
+
+    wants_site = any(w in text for w in ("website", "site", "link", "url"))
+    wants_x = any(w in text for w in ("x", "twitter", "tweet"))
+    if not (wants_site or wants_x):
+        return
+
+    now = datetime.now()
+    if now - last_info_reply < timedelta(seconds=COOLDOWN_SECONDS):
+        return
+    last_info_reply = now
+
+    if wants_site:
+        await update.message.reply_text(f"It’s {WEBSITE_URL} — don’t smudge the screen drooling. 😠")
+    elif wants_x:
+        await update.message.reply_text(f"Check us at {X_URL} — try not to sell first this time. 😠")
+
+# -----------------------------
+# Caption / Welcome / New Member
+# -----------------------------
+async def on_new_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.new_chat_members:
+        return
+    chat_id = update.effective_chat.id
+    for new in update.message.new_chat_members:
+        choices = ["✅","🔥","🐸","💩","🧠","❌"]
+        ans = random.choice(choices)
+        shuf = choices[:]
+        random.shuffle(shuf)
+        keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton(c, callback_data=f"captcha:{chat_id}:{new.id}:{c}")]
+             for c in shuf]
+        )
+        prompt = f"Welcome, {new.mention_html()}.\nTap <b>{ans}</b> within 30s to prove you’re not a bot."
+        msg = await update.message.reply_html(prompt, reply_markup=keyboard)
+        PENDING_CAPTCHAS[(chat_id, new.id)] = {
+            "message_id": msg.message_id,
+            "answer": ans,
+            "deadline": time.time() + 30.0,
+        }
+        context.application.create_task(captcha_timeout(context, chat_id, new.id))
+
+async def captcha_timeout(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int):
+    await asyncio.sleep(31)
+    key = (chat_id, user_id)
+    data = PENDING_CAPTCHAS.get(key)
+    if not data:
+        return
+    try:
+        await context.bot.ban_chat_member(chat_id, user_id)
+        await context.bot.unban_chat_member(chat_id, user_id)
+    except Exception:
+        pass
+    try:
+        await context.bot.delete_message(chat_id, data["message_id"])
+    except Exception:
+        pass
+    PENDING_CAPTCHAS.pop(key, None)
+
+async def on_captcha_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.callback_query:
+        return
+    q = update.callback_query
+    parts = q.data.split(":")
+    if len(parts) != 4:
+        await q.answer()
+        return
+    _, chat_id_str, user_id_str, pressed = parts
+    chat_id = int(chat_id_str); user_id = int(user_id_str)
+    if update.effective_user.id != user_id:
+        await q.answer("Not your button.")
+        return
+    data = PENDING_CAPTCHAS.get((chat_id, user_id))
+    if not data:
+        await q.answer("Too slow.")
+        return
+    if pressed == data["answer"]:
+        await q.answer("Verified.")
+        try:
+            await q.edit_message_text("Verified. Don’t cause trouble.")
+        except Exception:
+            pass
+        PENDING_CAPTCHAS.pop((chat_id, user_id), None)
+        await context.bot.send_message(chat_id, random.choice(WELCOME_ROASTS))
+    else:
+        await q.answer("Wrong.")
+
+# -----------------------------
+# Text guard: spam, link, tag replies, etc.
+# -----------------------------
+async def text_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.effective_chat or not update.effective_user:
+        return
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+    text = (update.message.text or "").strip()
+
+    # Scam / link detection
+    if LINK_REGEX.search(text):
+        if user_id not in LINK_WARN:
+            LINK_WARN[user_id] = time.time()
+            try:
+                await update.message.delete()
+            except Exception:
+                pass
+            await context.bot.send_message(chat_id,
+                f"{update.effective_user.mention_html()} — stop dropping dodgy links! One more and you’re out. 😠",
+                parse_mode="HTML"
+            )
+            return
+        else:
+            try:
+                await context.bot.ban_chat_member(chat_id, user_id)
+                await context.bot.unban_chat_member(chat_id, user_id)
+                await context.bot.send_message(chat_id,
+                    f"{update.effective_user.first_name} thought we wouldn’t notice… kicked for spam links. 🚫"
+                )
+            except Exception:
+                pass
+            LINK_WARN.pop(user_id, None)
+            return
+
+    # Spam flood check
+    if not await is_admin(update, context):
+        if not text.startswith("/"):
+            cnt = mark_spam(chat_id, user_id)
+            if cnt > SPAM_MAX_MSGS:
+                strikes = inc_strike(chat_id, user_id)
+                if strikes == 1:
+                    await update.message.reply_text("Oi! Slow yourself. That’s your warning.")
+                else:
+                    await context.bot.ban_chat_member(chat_id, user_id)
+                    await context.bot.unban_chat_member(chat_id, user_id)
+                    await update.message.reply_text("Out you go.")
+                    reset_user_spam(chat_id, user_id)
+                return
+
+    # Tag-only grumpy replies
+    if "bot_username" not in context.bot_data:
+        me = await context.bot.get_me()
+        context.bot_data["bot_username"] = f"@{me.username}".lower()
+    botname = context.bot_data["bot_username"]
+    if botname in text.lower():
+        await update.message.reply_text(random.choice(GRUMPY_REPLIES))
+
+# -----------------------------
+# AI Chat Reply (Grumpy Brain)
+# -----------------------------
+async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle mentions and generate replies using Grumpy George’s AI brain."""
+    if not update.message or not update.message.text:
+        return
+
+    text = update.message.text.strip()
+    botname = (await context.bot.get_me()).username.lower()
+
+    bot_user = await context.bot.get_me()
+    botname = bot_user.username.lower()
+
+    # Detect mention by @username or by entity tag (HTML mention)
+    entities = update.message.entities or []
+    mentioned = any(
+        e.type == "mention" and f"@{botname}" in update.message.text.lower()
+        or e.type == "text_mention" and e.user.id == bot_user.id
+        for e in entities
+    )
+
+    if not mentioned:
+        return
+
+    print(f"🤖 DEBUG: Mention detected with text: {text}")
+
+    try:
+        reply = grumpy_reply(text)
+        await update.message.reply_text(reply)
+    except Exception as e:
+        await update.message.reply_text(f"Oi! My brain’s having a wobble — {e}")
+
+
+# -----------------------------
+# Twitter Feed Integration (Direct API v2)
+# -----------------------------
+import sys
+
+LAST_TWEETS = set()
+
+async def check_twitter_feed(context: ContextTypes.DEFAULT_TYPE):
+    """Fetch recent tweets using the official X API (v2)."""
+    try:
+        client = tweepy.Client(bearer_token=BEARER_TOKEN)
+        user = client.get_user(username=TWITTER_HANDLE)
+
+        import time
+        try:
+            tweets = client.get_users_tweets(id=user.data.id, max_results=5)
+
+        import asyncio
+        except tweepy.TooManyRequests:
+            print("⚠️ Rate limit hit. Cooling off for 10 minutes...")
+            await asyncio.sleep(600)
+            return
+
+        if not tweets.data:
+            print("No tweets found for X feed.")
+            return
+
+        GRUMPY_INTROS = [
+            "The grump has posted again. Don’t all rush at once.",
+            "Go and see the new post… or don’t. I don’t care.",
+            "Apparently I’ve posted again. Try to contain your excitement.",
+            "Another day, another grumble from yours truly.",
+            "I’ve spoken. Whether you listen is your mistake.",
+            "New post. Lower your expectations accordingly.",
+            "Just posted something. Probably better than your bags.",
+            "The old git’s at it again. Brace yourselves."
+        ]
+
+        for tweet in tweets.data:
+            if tweet.id not in LAST_TWEETS:
+                LAST_TWEETS.add(tweet.id)
+                intro = random.choice(GRUMPY_INTROS)
+                msg = (
+                    f"🧓 <b>{intro}</b>\n\n"
+                    f"🐦 <b>@{TWITTER_HANDLE}:</b>\n\n"
+                    f"{tweet.text}\n\n"
+                    f"https://x.com/{TWITTER_HANDLE}/status/{tweet.id}"
+                )
+
+                await context.bot.send_message(
+                    chat_id=context.job.chat_id,
+                    text=msg,
+                    parse_mode="HTML",
+                    disable_web_page_preview=False,
+                )
+
+        sys.stdout.flush()
+        print(f"✅ Checked X feed for @{TWITTER_HANDLE}")
+
+    except Exception as e:
+        print(f"❌ X feed error: {e}")
+
+async def start_twitter_feed(app, chat_id: int):
+    """Launch background job for X polling."""
+    job_queue = app.job_queue
+    interval = TWITTER_CHECK_INTERVAL + TWITTER_INTERVAL_VARIATION
+
+    # --- Preload recent tweet IDs so bot doesn't repost history ---
+    try:
+        client = tweepy.Client(bearer_token=BEARER_TOKEN)
+        user = client.get_user(username=TWITTER_HANDLE)
+        recent = client.get_users_tweets(id=user.data.id, max_results=5)
+        if recent.data:
+            for tweet in recent.data:
+                 LAST_TWEETS.add(tweet.id)
+        print(f"✅ Preloaded {len(LAST_TWEETS)} existing tweets for @{TWITTER_HANDLE}")
+    except Exception as e:
+        print(f"⚠️ Could not preload tweets: {e}")
+
+    # --- Start periodic X polling ---
+    job_queue.run_repeating(
+        check_twitter_feed,
+        interval=interval,
+        first=15,
+        chat_id=chat_id,
+    )
+
+# -----------------------------
+# Main & wiring
+# -----------------------------
+def main():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.job_queue  # ensure job queue
+
+    app.add_handler(CommandHandler("start", start_cmd))
+    app.add_handler(CommandHandler("roast", roast_cmd))
+    app.add_handler(CommandHandler("website", website_cmd))
+    app.add_handler(CommandHandler("x", x_cmd))
+    app.add_handler(CommandHandler("shutup", shutup))
+    app.add_handler(CommandHandler("speak", speak))
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, on_new_members))
+    app.add_handler(CallbackQueryHandler(on_captcha_button, pattern=r"^captcha:"))
+    # ordering: moderation first, then tag replies
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, link_moderation))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mention_autoreply))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_guard))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ai_chat))
+
+    print("🤖 Grumpy George v1.3 is alive and grumbling...")
+
+    # Replace with your actual group ID for tweets
+    chat_id = -1003155680202
+    async def on_startup(a):
+        await start_twitter_feed(a, chat_id)
+    app.post_init = on_startup
+
+    app.run_polling(close_loop=False)
+
+if __name__ == "__main__":
+    main()

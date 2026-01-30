@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>The Grumpy Old Git</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <!-- OUTSIDE VIEW -->
+  <div id="view-outside" class="view active">
+    <div class="bg" style="background-image: url('https://i.postimg.cc/SKdt6GpY/outside.png');"></div>
+    <button id="enter-btn">Enter the Pub</button>
+  </div>
+  <!-- INSIDE PUB VIEW -->
+  <div id="view-inside" class="view">
+    <div class="bg" style="background-image: url('https://i.postimg.cc/G2ktg9q1/image-jpg-(1).jpg');"></div>
+    <div id="roast-bubble">
+      Oi, you again. What do you want, you daft git?
+    </div>
+    <div id="games-menu">
+      <button onclick="showGame('football')">Football Card</button>
+      <button onclick="showGame('bingo')">Bingo (coming)</button>
+      <button onclick="showGame('quiz')">Quiz (coming)</button>
+      <button onclick="showGame('pool')">Pool (coming)</button>
+      <button onclick="showGame('darts')">Darts (coming)</button>
+    </div>
+  </div>
+  <!-- GAME SCREENS -->
+  <div id="game-football" class="game-screen hidden">
+    <div id="football-rules">
+      <strong>Grumpy's Rules</strong><br>
+      Stake $1 per pick<br>
+      Pot $32 (full card)<br>
+      Winner takes $28<br>
+      $4 goes straight to my beer fund<br>
+      Pick one team — no refunds, no whinging<br>
+      Card fills → winner revealed. Good luck, you mugs.
+    </div>
+    <div id="football-grid"></div>
+    <button class="back-btn" onclick="backToPub()">Back to Bar</button>
+  </div>
+  <div id="game-bingo" class="game-screen hidden">
+    <img src="https://i.postimg.cc/YS0MmgxD/gog-bingo.png" alt="Grumpy's Bingo Card" class="game-img">
+    <button class="back-btn" onclick="backToPub()">Back to Bar</button>
+  </div>
+  <div id="game-quiz" class="game-screen hidden">
+    <img src="https://i.postimg.cc/nr037sTb/gog-quiz.jpg" alt="Sunday Mega Quiz" class="game-img">
+    <button class="back-btn" onclick="backToPub()">Back to Bar</button>
+  </div>
+  <div id="game-pool" class="game-screen hidden">
+    <img src="https://i.postimg.cc/mD7qc20B/gog-pool.jpg" alt="Pool Table" class="game-img">
+    <button class="back-btn" onclick="backToPub()">Back to Bar</button>
+  </div>
+  <div id="game-darts" class="game-screen hidden">
+    <img src="https://i.postimg.cc/8z3nt6Sb/gog-darts.jpg" alt="Darts Board" class="game-img">
+    <button class="back-btn" onclick="backToPub()">Back to Bar</button>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>

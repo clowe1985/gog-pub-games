@@ -1,0 +1,846 @@
+#!/usr/bin/env python3
+# GRUMPY GEORGE — FINAL, FULLY WORKING — PURE GROK-4 + CAPTCHA + GHOST CLEANUP + ELEVENLABS VOICE
+
+import os
+import re
+import json
+import time
+import random
+import asyncio
+import logging
+import httpx
+import subprocess
+import io
+from datetime import datetime, timedelta
+from collections import defaultdict, deque
+
+# ————— ELEVENLABS (v1.0+ — WORKS ON PYTHON 3.12) —————
+from elevenlabs.client import ElevenLabs
+from elevenlabs import VoiceSettings
+from dotenv import load_dotenv
+
+load_dotenv()
+
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+GEORGE_VOICE_ID = "t0ctzSC2zcWbWiA1EAxg"  # ← your actual voice ID
+
+# Initialise client once at startup
+eleven = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+
+# ————— TELEGRAM —————
+from telegram import Update, Poll, InlineKeyboardMarkup, InlineKeyboardButton, InputFile
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    PollAnswerHandler,
+    ContextTypes,
+    filters,
+)
+
+# ==================================================================
+# PURE xAI / GROK – 90s TIMEOUT + RETRY = QUIZ ALWAYS WORKS
+# ==================================================================
+XAI_API_KEY = os.getenv("XAI_API_KEY")
+
+async def grok_chat(messages: list, model="grok-4-latest", temperature=0.85, max_tokens=4000) -> str | None:
+    if not XAI_API_KEY:
+        print(">>> XAI_API_KEY missing – Grok disabled")
+        return None
+
+    url = "https://api.x.ai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {XAI_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens
+    }
+
+    # 90-second timeout + one retry – Grok-4 will ALWAYS deliver the 20 questions
+    for attempt in range(2):
+        async with httpx.AsyncClient(timeout=90.0, verify="/etc/ssl/certs/ca-certificates.crt") as client:
+            try:
+                r = await client.post(url, headers=headers, json=payload)
+                r.raise_for_status()
+                return r.json()["choices"][0]["message"]["content"]
+            except Exception as e:
+                print(f">>> GROK ERROR (attempt {attempt+1}/2): {e}")
+                if attempt == 0:
+                    await asyncio.sleep(5)  # brief pause before retry
+
+    print(">>> GROK FAILED AFTER RETRY – quiz cancelled")
+    return None
+
+from ai_brain import grumpy_reply
+
+# ==================================================================
+# CONFIG
+# ==================================================================
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8000468938:AAGy_DU4CfEF2vD1y0LPQYH3Uc4gQpFgpVY")
+CHAT_ID = -1003155680202
+TWITTER_BEARER = os.getenv("AAAAAAAAAAAAAAAAAAAAAFwD5AEAAAAA4m%2Fpd046dHalyEWKDR3RiimaoQk%3D9Wgi58YaREfR3tJmzma6GbhaRJM1BKdNoSDBnYsFJJvh4DE3Cf")
+TWITTER_ACCOUNT_ID = "1971588070941315072"
+WEBSITE_URL = "https://officialgogcoin.com/"
+X_URL = "https://x.com/OfficialGOGCoin"
+KNOWN_MEMBERS_FILE = "known_members.json"
+LEADERBOARD_FILE = "quiz_leaderboard.json"
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+GEORGE_VOICE_ID = "t0ctzSC2zcWbWiA1EAxg"
+
+LINK_REGEX = re.compile(r"(https?://\S+|www\.\S+)", re.IGNORECASE)
+SPAM_WINDOW = 5
+SPAM_MAX = 3
+
+SPAM_TRACK = {}
+LINK_WARN = {}
+PENDING_CAPTCHAS = {}
+bot_muted = False
+last_tweet_id = None
+
+# ------------------- Helper ------------------------------
+from io import BytesIO
+import subprocess
+
+def convert_to_ogg_opus(audio_bytes: bytes, bitrate="32k") -> BytesIO:
+    """
+    Convert raw audio bytes (mp3/wav etc.) to OGG/OPUS using ffmpeg.
+    Returns a BytesIO containing the OGG data.
+    """
+    # Run ffmpeg, capture stdout bytes (do NOT pass BytesIO as stdout)
+    proc = subprocess.run(
+        ["ffmpeg", "-i", "pipe:0", "-f", "ogg", "-c:a", "libopus", "-b:a", bitrate, "pipe:1"],
+        input=audio_bytes,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=True
+    )
+    ogg_bytes = proc.stdout
+    ogg_buffer = BytesIO(ogg_bytes)
+    ogg_buffer.seek(0)
+    return ogg_buffer
+
+def escape_markdown_v2(text: str) -> str:
+    """
+    Escapes all characters that are special in Telegram MarkdownV2.
+    """
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
+
+def get_audio_duration_seconds_from_bytes(ogg_bytes: bytes) -> float:
+    """
+    Uses ffprobe to read the true audio duration.
+    If ffprobe is missing, falls back to a rough estimate.
+    """
+    try:
+        proc = subprocess.run(
+            [
+                "ffprobe",
+                "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                "pipe:0"
+            ],
+            input=ogg_bytes,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True
+        )
+
+        duration_str = proc.stdout.decode().strip()
+        return float(duration_str)
+
+    except Exception:
+        # fallback if ffprobe isn't installed
+        print(">>> ffprobe missing or failed — using fallback duration.")
+        # Opus ~17k bytes per second at 32 kbps, so:
+        fallback = max(1.0, len(ogg_bytes) / 17000)
+        return fallback
+
+
+# ==================================================================
+# PERSONALITY
+# ==================================================================
+ROASTS = [
+    "You trade like oven mitts on.", "Your stop loss is a suggestion.", "You FOMO’d into a rug.",
+    "Your bags are heavier than your brain.", "You’d short the top and long the bottom."
+]
+WELCOME_ROASTS = ["Fine, you’re in.", "Don’t make me regret it.", "Human detected. Barely.", "Welcome. Behave."]
+
+# ==================================================================
+# ADMIN CHECK
+# ==================================================================
+async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    try:
+        m = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
+        return m.status in ("administrator", "creator")
+    except:
+        return False
+
+# ==================================================================
+# CAPTCHA
+# ==================================================================
+async def on_new_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.new_chat_members:
+        return
+    for member in update.message.new_chat_members:
+        if member.is_bot:
+            continue
+        choices = ["✅","🔥","🐸","💩","🧠","❌"]
+        answer = random.choice(choices)
+        shuffled = choices[:]
+        random.shuffle(shuffled)
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(c, callback_data=f"captcha:{member.id}:{answer}") for c in shuffled]])
+        msg = await update.message.reply_html(
+            f"<b>{member.first_name}</b>, tap <b>{answer}</b> in 30s or get kicked.",
+            reply_markup=keyboard
+        )
+        PENDING_CAPTCHAS[member.id] = {"msg_id": msg.message_id, "answer": answer, "deadline": time.time() + 30}
+        context.application.create_task(captcha_timeout(context, member.id))
+
+async def captcha_timeout(context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    await asyncio.sleep(31)
+    if user_id not in PENDING_CAPTCHAS:
+        return
+    try:
+        await context.bot.ban_chat_member(CHAT_ID, user_id)
+        await context.bot.unban_chat_member(CHAT_ID, user_id)
+    except: pass
+    PENDING_CAPTCHAS.pop(user_id, None)
+
+async def captcha_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if not query.data.startswith("captcha:"):
+        return
+    _, uid_str, chosen = query.data.split(":")
+    user_id = int(uid_str)
+    if update.effective_user.id != user_id:
+        return
+    data = PENDING_CAPTCHAS.get(user_id)
+    if not data or chosen != data["answer"]:
+        await query.edit_message_text("Wrong. Kicked.")
+        await context.bot.ban_chat_member(CHAT_ID, user_id)
+        await context.bot.unban_chat_member(CHAT_ID, user_id)
+    else:
+        await query.edit_message_text(random.choice(WELCOME_ROASTS))
+    PENDING_CAPTCHAS.pop(user_id, None)
+
+# ==================================================================
+# LINK + SPAM GUARD
+# ==================================================================
+async def link_and_spam_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text or update.message.from_user.is_bot:
+        return
+    if await is_admin(update, context):
+        return
+
+    text = update.message.text
+    user_id = update.message.from_user.id
+    chat_id = update.effective_chat.id
+
+    if LINK_REGEX.search(text):
+        if user_id in LINK_WARN and time.time() - LINK_WARN[user_id] < 60:
+            await update.message.delete()
+            await context.bot.ban_chat_member(chat_id, user_id)
+            await context.bot.unban_chat_member(chat_id, user_id)
+            await context.bot.send_message(chat_id, f"{update.message.from_user.first_name} kicked for links.")
+            LINK_WARN.pop(user_id, None)
+        else:
+            await update.message.delete()
+            LINK_WARN[user_id] = time.time()
+            await context.bot.send_message(chat_id, f"{update.message.from_user.mention_html()} — no links.", parse_mode="HTML")
+        return
+
+    now = time.time()
+    bucket = SPAM_TRACK.setdefault(chat_id, {}).setdefault(user_id, deque())
+    bucket.append(now)
+    while bucket and now - bucket[0] > SPAM_WINDOW:
+        bucket.popleft()
+    if len(bucket) > SPAM_MAX:
+        await context.bot.ban_chat_member(chat_id, user_id)
+        await context.bot.unban_chat_member(chat_id, user_id)
+        await context.bot.send_message(chat_id, "Spam. Out.")
+        bucket.clear()
+
+# =============================
+# PUB QUIZ – PURE GROK-4 ONLY – NO FALLBACKS EVER
+# =============================
+QUIZ_ACTIVE = False
+QUESTION_INDEX = 0
+TOTAL_QUESTIONS = 20
+LEADERBOARD = {}
+QUESTION_START_TIME = None
+AI_QUESTIONS = []
+CURRENT_POLL_ID = None
+
+from telegram import ChatPermissions
+
+async def lock_quiz_chat(chat_id: int, context):
+    """
+    Prevent all regular members from sending messages in the chat.
+    """
+    # Restrict sending messages for everyone except admins
+    permissions = ChatPermissions(
+        can_send_messages=False,
+        can_send_media_messages=False,
+        can_send_polls=False,
+        can_send_other_messages=False,
+        can_add_web_page_previews=False,
+        can_change_info=False,
+        can_invite_users=True,
+        can_pin_messages=False
+    )
+    await context.bot.set_chat_permissions(chat_id=chat_id, permissions=permissions)
+
+async def unlock_quiz_chat(chat_id: int, context):
+    """
+    Restore full permissions so everyone can chat normally.
+    """
+    permissions = ChatPermissions(
+        can_send_messages=True,
+        can_send_media_messages=True,
+        can_send_polls=True,
+        can_send_other_messages=True,
+        can_add_web_page_previews=True,
+        can_change_info=False,
+        can_invite_users=True,
+        can_pin_messages=False
+    )
+    await context.bot.set_chat_permissions(chat_id=chat_id, permissions=permissions)
+
+# --- Generate quiz questions ---
+async def generate_quiz_questions():
+    global AI_QUESTIONS
+    AI_QUESTIONS.clear()
+
+    prompt = (
+        "Generate exactly 20 unique, brutal, sarcastic crypto/pub trivia questions in Grumpy Old Git style.\n"
+        "Format exactly this – nothing else:\n"
+        "Q1: Question here?\nA) option1\nB) option2\nC) option3\nD) option4\nCorrect: B\n\n"
+        "Q2: …\nAll 20 questions. No intro. No outro. No JSON. No excuses."
+    )
+
+    raw = await grok_chat([
+        {"role": "system", "content": "You are Grumpy Old Git – sarcastic East-End pub regular. No fluff."},
+        {"role": "user", "content": prompt}
+    ], temperature=0.9, max_tokens=4000)
+
+    if not raw:
+        print(">>> GROK FAILED – NO RESPONSE")
+        return
+
+    questions = []
+    for block in re.split(r"\n(?=Q\d+:)", raw):
+        lines = [l.strip() for l in block.split("\n") if l.strip()]
+        if len(lines) < 6 or not lines[0].startswith("Q"):
+            continue
+        q = lines[0].split(":", 1)[1].strip()
+        opts = [l[3:].strip() for l in lines[1:5] if len(l) > 2]
+        correct_line = next((l for l in lines[5:] if l.upper().startswith("CORRECT:")), "")
+        correct = correct_line.split(":", 1)[1].strip().upper() if ":" in correct_line else ""
+        if correct in "ABCD" and len(opts) == 4:
+            questions.append({"q": q, "options": opts, "correct": correct})
+
+    AI_QUESTIONS = questions[:20]
+    print(f">>> Grok delivered {len(AI_QUESTIONS)} questions")
+
+
+# --- Start quiz ---
+async def start_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global QUIZ_ACTIVE, QUESTION_INDEX, LEADERBOARD
+    if not await is_admin(update, context):
+        await update.message.reply_text("Admins only, you cheeky sod.")
+        return
+    if QUIZ_ACTIVE:
+        await update.message.reply_text("Already running, you daft apeth.")
+        return
+
+    QUIZ_ACTIVE = True
+    QUESTION_INDEX = 0
+    LEADERBOARD = {}
+    chat_id = update.effective_chat.id
+    context.bot_data["quiz_chat_id"] = chat_id
+
+    # --- AI-generated TTS intro ---
+    intro_prompt = (
+        "Generate a short, sarcastic Grumpy Old Git-style announcement for a crypto/pub quiz. "
+        "Mention that the quiz questions are being brewed. "
+        "Roast the players a little while they wait. Make it funny and TTS-friendly."
+    )
+    try:
+        intro_text = await grok_chat([
+            {"role": "system", "content": "You are Grumpy Old Git – sarcastic East-End pub regular."},
+            {"role": "user", "content": intro_prompt}
+        ], temperature=0.9, max_tokens=150)
+
+        # Send as TTS voice only
+        audio_chunks = eleven.text_to_speech.convert(
+            voice_id=GEORGE_VOICE_ID,
+            text=intro_text,
+            model_id="eleven_multilingual_v2",
+            voice_settings=VoiceSettings(stability=0.65, similarity_boost=0.85)
+        )
+        audio_bytes = b"".join(chunk for chunk in audio_chunks)
+        ogg_buffer = convert_to_ogg_opus(audio_bytes)
+        from telegram import InputFile
+        await context.bot.send_voice(
+            chat_id=chat_id,
+            voice=InputFile(ogg_buffer, filename="intro.ogg"),
+            caption="🎙 Grumpy George warming you up…",
+            parse_mode="MarkdownV2"
+        )
+
+    except Exception as e:
+        print(f">>> Intro TTS failed: {e}")
+        await update.message.reply_text(
+            "🧠 *PUB QUIZ TIME!* Grumpy George is a bit creaky today, but let's start anyway.",
+            parse_mode="Markdown"
+        )
+        await lock_quiz_chat(chat_id, context)
+
+    # --- Generate the quiz questions ---
+    await generate_quiz_questions()
+
+    if len(AI_QUESTIONS) < 20:
+        await update.message.reply_text(
+            "Grok’s in the bog or being a lazy git.\nQuiz cancelled today. Try again later."
+        )
+        QUIZ_ACTIVE = False
+        return
+
+    # --- Ready to start ---
+    await asyncio.sleep(1)  # optional small pause before first question
+    await ask_next_question(context, chat_id)
+
+# --------------------- NEXT QUESTION ---------------------
+async def ask_next_question(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
+    global QUESTION_INDEX, QUESTION_START_TIME, CURRENT_POLL_ID
+
+    if QUESTION_INDEX >= TOTAL_QUESTIONS:
+        await end_quiz(context, chat_id)
+        return
+
+    q = AI_QUESTIONS[QUESTION_INDEX]
+    correct_idx = "ABCD".index(q["correct"])
+    question_text = f"Question {QUESTION_INDEX + 1}. {q['q']}"
+    escaped_question = escape_markdown_v2(q["q"])
+
+    try:
+        # --- Generate TTS ---
+        audio_chunks = eleven.text_to_speech.convert(
+            voice_id=GEORGE_VOICE_ID,
+            text=question_text,
+            model_id="eleven_multilingual_v2",
+            voice_settings=VoiceSettings(stability=0.65, similarity_boost=0.85)
+        )
+        audio_bytes = b"".join(chunk for chunk in audio_chunks)
+
+        # --- Convert to Telegram-friendly OGG/Opus ---
+        ogg_buffer = convert_to_ogg_opus(audio_bytes)
+        ogg_bytes = ogg_buffer.getvalue()
+
+        # --- Determine REAL audio duration ---
+        duration_secs = get_audio_duration_seconds_from_bytes(ogg_bytes)
+
+        # --- Send the voice note ---
+        input_file = InputFile(io.BytesIO(ogg_bytes), filename="question.ogg")
+        await context.bot.send_voice(
+            chat_id=chat_id,
+            voice=input_file,
+            caption=f"*Q{QUESTION_INDEX + 1}:* {escaped_question}",
+            parse_mode="MarkdownV2",
+            duration=int(round(duration_secs))
+        )
+
+        # Wait for voice + 10 sec buffer
+        buffer_secs = 10
+        wait_secs = duration_secs + buffer_secs
+        await asyncio.sleep(wait_secs)
+
+    except Exception as e:
+        print(f">>> Voice failed: {e}")
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=f"*Q{QUESTION_INDEX + 1}:* {escaped_question}",
+            parse_mode="MarkdownV2"
+        )
+        await asyncio.sleep(2)  # fallback pause
+
+    # --- Timer starts now (just before poll) ---
+    QUESTION_START_TIME = datetime.now()
+
+    # --- Send poll with 10 seconds to answer ---
+    poll = await context.bot.send_poll(
+        chat_id=chat_id,
+        question=f"Q{QUESTION_INDEX + 1}: {q['q']}",
+        options=q["options"],
+        is_anonymous=False,
+        type=Poll.QUIZ,
+        correct_option_id=correct_idx,
+        open_period=10,
+        allows_multiple_answers=False
+    )
+
+    CURRENT_POLL_ID = poll.poll.id
+    context.bot_data["current_poll_id"] = poll.poll.id
+    QUESTION_INDEX += 1
+
+    # Wait until poll closes
+    await asyncio.sleep(10)
+
+    if QUIZ_ACTIVE:
+        await ask_next_question(context, chat_id)
+
+# --------------------- POLL ANSWER – THIS ONE ACTUALLY GIVES POINTS ---------------------
+async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(">>> POLL ANSWER RECEIVED — SOMEONE JUST VOTED!")
+    if not QUIZ_ACTIVE:
+        return
+
+    answer = update.poll_answer
+    user = answer.user
+    chosen_options = answer.option_ids
+
+    if not chosen_options:  # no choice made
+        return
+
+    chosen = chosen_options[0]
+
+    # Make sure this answer belongs to the current question
+    if answer.poll_id != context.bot_data.get("current_poll_id"):
+        return  # old or future poll
+
+    # Which question is this? (the one we just asked)
+    q_index = QUESTION_INDEX - 1
+    if q_index < 0 or q_index >= len(AI_QUESTIONS):
+        return
+
+    question = AI_QUESTIONS[q_index]
+    correct_letter = question["correct"]        # "A", "B", "C" or "D"
+    correct_idx = "ABCD".index(correct_letter)
+
+    # Calculate how long they took
+    time_taken = (datetime.now() - QUESTION_START_TIME).total_seconds() if QUESTION_START_TIME else 99
+
+    # Make sure the user is in the leaderboard
+    if user.id not in LEADERBOARD:
+        LEADERBOARD[user.id] = {
+            "name": user.full_name or user.username or "Unknown",
+            "score": 0
+        }
+
+    chat_id = context.bot_data["quiz_chat_id"]
+
+    if chosen == correct_idx:
+        # Fast = 5 points, slow = 3 points
+        points = 5 if time_taken < 5 else 3
+        LEADERBOARD[user.id]["score"] += points
+
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=f"✅ {user.first_name} got it bloody right! +{points} pts ({time_taken:.1f}s)"
+        )
+    else:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=f"❌ {user.first_name}… wrong, you muppet."
+        )
+
+# --------------------- LEADERBOARD ---------------------
+async def quiz_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not QUIZ_ACTIVE:
+        await update.message.reply_text("No quiz running, you nosy git.")
+        return
+    if not LEADERBOARD:
+        await update.message.reply_text("No points yet, the lot of you are useless.")
+        return
+    lb = sorted(LEADERBOARD.items(), key=lambda x: (-x[1]["score"], x[1]["name"]))
+    text = "*🔥 LIVE LEADERBOARD 🔥*\n\n"
+    for i, (_, data) in enumerate(lb[:10], 1):
+        medal = ["🥇","🥈","🥉"][i-1] if i <= 3 else f"{i}."
+        text += f"{medal} {data['name']}: {data['score']} pts\n"
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+# Load leaderboard from disk when bot starts
+def load_leaderboard():
+    global LEADERBOARD
+    if os.path.exists(LEADERBOARD_FILE):
+        try:
+            with open(LEADERBOARD_FILE, "r") as f:
+                data = json.load(f)
+                LEADERBOARD = {int(k): v for k, v in data.items()}  # keys must be int
+            print(f">>> Loaded leaderboard for {len(LEADERBOARD)} legends")
+        except Exception as e:
+            print(f">>> Failed to load leaderboard: {e}")
+            LEADERBOARD = {}
+
+# Save leaderboard to disk
+def save_leaderboard():
+    try:
+        with open(LEADERBOARD_FILE, "w") as f:
+            json.dump(LEADERBOARD, f)
+        print(">>> Leaderboard saved to disk")
+    except Exception as e:
+        print(f">>> Failed to save leaderboard: {e}")
+
+# --------------------- CLEAR LEADERBOARD ---------------------
+async def clear_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update, context):
+        await update.message.reply_text("Only admins can wipe the slate, sunshine.")
+        return
+    global LEADERBOARD
+    old_count = len(LEADERBOARD)
+    LEADERBOARD = {}
+    if os.path.exists(LEADERBOARD_FILE):
+        os.remove(LEADERBOARD_FILE)
+    await update.message.reply_text(f"🧹 Leaderboard wiped. {old_count} punters back to zero.")
+
+# --------------------- END QUIZ (Dynamic AI Roast Per Player) ---------------------
+async def end_quiz_core(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
+    """
+    Core function that ends the quiz and posts the final leaderboard + TTS roast.
+    Safe to call from jobs or other parts of code where you have 'context' and 'chat_id'.
+    """
+    global QUIZ_ACTIVE
+
+    # If no quiz active, nothing to do
+    if not QUIZ_ACTIVE:
+        return
+
+    QUIZ_ACTIVE = False
+
+    # Cancel scheduled quiz job(s) if present (prevents leftover tasks)
+    try:
+        for job in context.job_queue.get_jobs_by_name(str(chat_id) + "_quiz"):
+            job.schedule_removal()
+    except Exception:
+        pass
+
+    # --- Prepare leaderboard text and AI prompt ---
+    if not LEADERBOARD:
+        msg = "😤 *QUIZ OVER!* Not a single bloody point. Useless bunch of muppets."
+        tts_text = "Pathetic, none of you scored a single point. Useless lot!"
+    else:
+        lb = sorted(LEADERBOARD.items(), key=lambda x: (-x[1]["score"], x[1]["name"]))
+        winner_name = lb[0][1]["name"]
+        winner_score = lb[0][1]["score"]
+
+        header = f"🎉 *QUIZ OVER!* Winner: *{winner_name}* with {winner_score} pts!\n\n"
+        podium = ""
+        for i, (_, data) in enumerate(lb[:10], 1):
+            medal = ["🥇", "🥈", "🥉"][i-1] if i <= 3 else f"{i}."
+            podium += f"{medal} {data['name']}: {data['score']} pts\n"
+
+        msg = header + podium
+
+        # AI prompt for dynamic roast
+        top_players = [(data['name'], data['score']) for _, data in lb[:3]]
+        zeros = [data['name'] for _, data in lb if data['score'] == 0]
+
+        ai_prompt = (
+            f"Top 3 players: {top_players}\n"
+            f"Players with zero points: {zeros}\n"
+            "Generate a single TTS-friendly paragraph in Grumpy Old Git style. "
+            "Mention the top 3 players by name and score with praise, "
+            "then roast each zero-score player individually with a unique insult."
+        )
+
+        try:
+            tts_text = await grok_chat([
+                {"role": "system", "content": "You are Grumpy Old Git – sarcastic East-End pub regular."},
+                {"role": "user", "content": ai_prompt}
+            ], temperature=0.9, max_tokens=400)
+        except Exception:
+            tts_text = None
+
+    # --- Send leaderboard text ---
+    try:
+        out_msg = escape_markdown_v2(msg).replace("🥇", "🥇").replace("🥈", "🥈").replace("🥉", "🥉")
+        await context.bot.send_message(chat_id=chat_id, text=out_msg, parse_mode="MarkdownV2")
+    except Exception as e:
+        print(">>> Failed to send leaderboard text:", e)
+
+    # --- Unlock chat so people can talk again ---
+    try:
+        await unlock_quiz_chat(chat_id, context)
+    except Exception:
+        pass
+
+    # --- Send TTS roast (if AI produced text) ---
+    if tts_text:
+        try:
+            audio_chunks = eleven.text_to_speech.convert(
+                voice_id=GEORGE_VOICE_ID,
+                text=tts_text,
+                model_id="eleven_multilingual_v2",
+                voice_settings=VoiceSettings(stability=0.65, similarity_boost=0.85)
+            )
+            audio_bytes = b"".join(chunk for chunk in audio_chunks)
+            ogg_buffer = convert_to_ogg_opus(audio_bytes)
+            await context.bot.send_voice(
+                chat_id=chat_id,
+                voice=InputFile(ogg_buffer, filename="leaderboard.ogg"),
+                caption="🎙 Grumpy George announces the results…",
+                parse_mode="MarkdownV2"
+            )
+        except Exception as e:
+            print(f">>> Leaderboard TTS failed: {e}")
+
+    # Save and clear leaderboard state
+    try:
+        save_leaderboard()
+    except Exception:
+        pass
+    LEADERBOARD.clear()
+
+
+# --- Command wrapper (register this as the handler) ---
+async def end_quiz_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handler wrapper for /endquiz — extracts chat_id and calls the core function.
+    Use this in your CommandHandler registration.
+    """
+    chat_id = update.effective_chat.id
+    await end_quiz_core(context, chat_id)
+
+# ==================================================================
+# GHOST CLEANUP
+# ==================================================================
+async def cleanup_ghost_accounts(context: ContextTypes.DEFAULT_TYPE):
+    if not os.path.exists(KNOWN_MEMBERS_FILE):
+        return
+    try:
+        with open(KNOWN_MEMBERS_FILE, "r") as f:
+            known = json.load(f)
+    except:
+        return
+    kicked = 0
+    for user_id_str in list(known.keys()):
+        user_id = int(user_id_str)
+        try:
+            member = await context.bot.get_chat_member(CHAT_ID, user_id)
+            if member.status in ("left", "kicked") or member.user.is_deleted:
+                await context.bot.ban_chat_member(CHAT_ID, user_id)
+                kicked += 1
+                del known[user_id_str]
+        except:
+            del known[user_id_str]
+            kicked += 1
+    with open(KNOWN_MEMBERS_FILE, "w") as f:
+        json.dump(known, f)
+    if kicked:
+        await context.bot.send_message(CHAT_ID, f"Cleaned {kicked} ghosts.")
+
+# ==================================================================
+# COMMANDS & AI CHAT
+# ==================================================================
+async def roast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(random.choice(ROASTS))
+
+async def website(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(WEBSITE_URL)
+
+async def x_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(X_URL)
+
+async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if bot_muted or not update.message or not update.message.text:
+        return
+    text = update.message.text.lower()
+    me = (await context.bot.get_me()).username.lower()
+    mentioned = f"@{me}" in text
+    replied = update.message.reply_to_message and update.message.reply_to_message.from_user.id == (await context.bot.get_me()).id
+    if mentioned or replied:
+        reply = await grumpy_reply(update.message.text, update.effective_user.id, update.effective_chat.id)
+        await update.message.reply_text(reply)
+
+# ==================================================================
+# TWITTER CHECK – FIXED FOR 8-HOUR PULLS (FREE TIER SAFE)
+# ==================================================================
+async def check_twitter(context: ContextTypes.DEFAULT_TYPE):
+    global last_tweet_id
+    url = f"https://api.twitter.com/2/users/{TWITTER_ACCOUNT_ID}/tweets"
+    headers = {"Authorization": f"Bearer {TWITTER_BEARER}"}
+    params = {"max_results": 5, "exclude": "retweets,replies"}
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.get(url, headers=headers, params=params)
+
+        print(f">>> X API response: {r.status_code}")          # ← this will show in logs
+
+        if r.status_code != 200:
+            print(f">>> X API error: {r.status_code} – {r.text}")
+            return
+
+        data = r.json().get("data", [])
+        if not data:
+            print(">>> No tweets returned (empty timeline or wrong user ID)")
+            return
+
+        for tweet in reversed(data):
+            tid = tweet["id"]
+            if not last_tweet_id or int(tid) > int(last_tweet_id):
+                msg = f"🔔 *Old git just posted on X!*\n\n{tweet['text']}\n\nhttps://x.com/OfficialGOGCoin/status/{tid}"
+                await context.bot.send_message(CHAT_ID, msg, parse_mode="Markdown")
+                last_tweet_id = tid
+                print(f">>> New tweet posted: {tid}")
+
+    except Exception as e:
+        print(f">>> Twitter checker crashed: {e}")
+
+async def test_twitter(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Oi, checking the X feed right now, hold your horses...")
+    await check_twitter(context)                     # force immediate check
+    await update.message.reply_text("Done. If there was a new tweet, it’s in the group now. If not – nothing new, you nosy git.")
+
+# ==================================================================
+# MAIN
+# ==================================================================
+async def main():
+    app = Application.builder().token(BOT_TOKEN).concurrent_updates(10).get_updates_read_timeout(1).build()
+
+    # ------------------ handlers ------------------
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, on_new_members))
+    app.add_handler(CallbackQueryHandler(captcha_callback, pattern=r"^captcha:"))
+
+    # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+    # AI CHAT MUST COME BEFORE MODERATION!
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ai_chat))           # ← FIRST
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, link_and_spam_guard))  # ← SECOND
+    # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+
+    app.add_handler(CommandHandler("roast", roast))
+    app.add_handler(CommandHandler("website", website))
+    app.add_handler(CommandHandler("x", x_cmd))
+    app.add_handler(CommandHandler("startquiz", start_quiz))
+    app.add_handler(CommandHandler("endquiz", end_quiz_cmd))
+    app.add_handler(CommandHandler("quizleaderboard", quiz_leaderboard))
+    app.add_handler(PollAnswerHandler(handle_poll_answer))
+    app.add_handler(CommandHandler("testtwitter", test_twitter))
+
+    # ------------------ jobs ------------------
+    app.job_queue.run_daily(cleanup_ghost_accounts, time=datetime.strptime("03:00", "%H:%M").time())
+    app.job_queue.run_repeating(
+        check_twitter,
+        interval=28800,  # 8 hours
+        first=30,
+    )
+    print("GRUMPY GEORGE STARTING – PURE GROK-4 – FULLY ARMED")
+
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling(drop_pending_updates=True)
+
+    print("GRUMPY GEORGE IS ALIVE AND GRUMPY")
+
+    load_leaderboard()
+    await asyncio.Event().wait()  # keep running forever
+
+if __name__ == "__main__":
+    asyncio.run(main())
