@@ -3,12 +3,9 @@ venv/
 __pycache__/
 *.pyc
 *.so
-<<<<<<< HEAD
-=======
 *.bin
 *.egg-info/
 dist/
 build/
 *.log
 .env
->>>>>>> 203594357bcf6bd4c472f14b596b7edab3579bad
