@@ -1,0 +1,11 @@
+gogenv/
+venv/
+__pycache__/
+*.pyc
+*.so
+*.bin
+*.egg-info/
+dist/
+build/
+*.log
+.env
