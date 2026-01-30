@@ -9,3 +9,4 @@ dist/
 build/
 *.log
 .env
+georgebot/
