@@ -70,3 +70,12 @@ Thumbs.db
 node_modules/
 dist/
 build/
+gogenv/
+venv/
+__pycache__/
+*.pyc
+*.log
+*.env
+georgebot.env
+*.bak
+*.save*
