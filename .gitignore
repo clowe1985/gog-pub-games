@@ -1,12 +1,72 @@
+# Python environments and caches
 gogenv/
 venv/
 __pycache__/
 *.pyc
-*.so
-*.bin
-*.egg-info/
+*.pyo
+*.pyd
+.Python
+env/
+.env
+*.env
+
+# Logs and temporary files
+*.log
+*.log.*
+bot.log*
+deadbot.log
+debug.log
+*.bak
+*.save
+*.save.*
+*.old
+*.tmp
+
+# Data and state files (these change frequently and should stay local)
+football_card.json
+football_card_web.json
+grumpys_pub_games.json
+leaderboard.json
+user_wallets.json
+known_members.json
+paid_entries.json
+quiz_leaderboard.json
+last_tweet_id.json
+used_questions.json
+blacklist.json
+state.json
+pub_playlists.json
+
+# Audio and media files
+*.wav
+*.mp3
+*.ogg
+*.mp4
+george_best.wav
+george_voice.mp3
+george_voice.ogg
+
+# Old/backup Python scripts
+ai_brain.py
+buy_pints.py
+football_card.py
+pubsong.py
+twitter.watcher.py
+twitter_watcher.py
+george_bot_old_v1.py
+george_bot_v2.py
+
+# Images and assets (keep only if needed for web app)
+outside.png
+
+# General ignores
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.swn
+*.idea/
+.vscode/
+node_modules/
 dist/
 build/
-*.log
-.env
-georgebot/
