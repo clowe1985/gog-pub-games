@@ -38,7 +38,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // ENTER PUB BUTTON
   // ===============================
   enterBtn.addEventListener('click', () => {
-    Telegram.WebApp.sendData(JSON.stringify({ action: "enter_pub" }));
+    const user = Telegram.WebApp.initDataUnsafe?.user;
+    if (!user || !user.id) {
+      alert("Telegram user data unavailable. Try reopening from Telegram.");
+      return;
+    }
+
+    Telegram.WebApp.sendData(JSON.stringify({
+      action: "enter_pub",
+      userId: user.id,
+      username: user.username || ""
+    }));
+    console.log("Sent enter_pub request for user:", user.id);
   });
 
   // ===============================
@@ -116,7 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
     slot.style.pointerEvents = 'none';
     Telegram.WebApp.sendData(JSON.stringify({
       action: 'pickteam_web',
-      team: team
+      team: team,
+      userId: user.id
     }));
     setTimeout(requestCardState, 2000);
   }
@@ -146,10 +158,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // ===============================
   Telegram.WebApp.onEvent('web_app_data', event => {
     if (typeof event.data !== 'string') return;
-    console.log("Received:", event.data);
+    console.log("Received from bot:", event.data);
 
     if (event.data.startsWith("ENTER_OK:")) {
       window.PUB_USER = JSON.parse(event.data.replace("ENTER_OK:", ""));
+      console.log("Entry approved. Transitioning inside...");
       outside.style.opacity = '0';
       setTimeout(() => {
         outside.style.display = 'none';
@@ -163,18 +176,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (event.data.startsWith("ENTER_DENIED")) {
       alert("Entry denied: " + event.data.split(":")[1]);
+      console.log("Entry denied:", event.data);
       return;
     }
 
     if (event.data.startsWith("CARD_STATE:")) {
       const state = JSON.parse(event.data.replace("CARD_STATE:", ""));
       updateGrid(state);
+      console.log("Card state updated:", state);
       return;
     }
 
     if (event.data.includes("DENIED") || event.data.includes("❌")) {
       alert(event.data);
       requestCardState();
+      return;
     }
+
+    console.log("Unhandled response:", event.data);
   });
 });

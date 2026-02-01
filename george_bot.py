@@ -132,6 +132,7 @@ RUMOUR_TARGET = {}
 RUMOUR_GUESSED = {}
 PUB_USERS = {}
 WEB_APP_CARD_FILE = 'grumpys_pub_games.json'
+USER_WALLETS_FILE = "user_wallets.json"
 
 # ------------------- Helper ------------------------------
 from io import BytesIO
@@ -662,19 +663,27 @@ End with something like "Now sod off before I charge you for the eye-roll."
     await update.message.reply_text(pub_joke)
 
 # -------- Username For Web App --------
-def get_user_for_web_app(username, user_id):
-    """Find user for web app picks"""
-    # First try by user_id
-    if user_id and str(user_id) in WALLETS:
-        return str(user_id), WALLETS[str(user_id)]
+def get_user_for_web_app(username: str | None, user_id: int | str | None) -> tuple[str | None, dict | None]:
+    """
+    Find stored wallet entry for a web app user.
 
-    # Try by username (without @)
-    clean_username = username.lstrip('@').lower()
-    for uid, wallet_info in WALLETS.items():
-        wallet_username = wallet_info.get('username', '').lower()
-        if wallet_username == clean_username:
-            return uid, wallet_info
+    Prioritizes lookup by user_id (most reliable), then falls back to username.
+    Returns (user_id_str, wallet_dict) on success, or (None, None) if not found.
+    """
+    # Prefer user_id lookup (fast and authoritative)
+    user_id_str = str(user_id) if user_id is not None else None
+    if user_id_str and user_id_str in WALLETS:
+        return user_id_str, WALLETS[user_id_str]
 
+    # Fallback: username lookup (case-insensitive, strip @)
+    if username:
+        clean_username = username.lstrip('@').lower()
+        for uid, wallet_info in WALLETS.items():
+            stored_username = wallet_info.get('username', '').lower()
+            if stored_username == clean_username:
+                return uid, wallet_info
+
+    # No match
     return None, None
 
 # -------- Web App Data Handler --------
@@ -683,7 +692,7 @@ async def handle_web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE
     print(update.message)
     print(f"\n{'='*60}")
     print(f">>> 🎮 WEB APP HANDLER at {datetime.now()}")
-    print(f">>> From: @{update.effective_user.username}")
+    print(f">>> From: @{update.effective_user.username or 'unknown'}")
     print(f"{'='*60}")
 
     if not update.message or not update.message.web_app_data:
@@ -699,20 +708,23 @@ async def handle_web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         tg_user = update.effective_user
         user_id = tg_user.id
-        username = tg_user.username
+        username = tg_user.username or ""
 
         # ======================================================
         # ENTER PUB (ONE-TIME USER + WALLET CHECK)
         # ======================================================
         if action == "enter_pub":
-
             if not username:
                 await update.message.reply_text("ENTER_DENIED:NO_USERNAME")
+                print(">>> Denied: No username")
                 return
 
-            wallet = WALLETS.get(str(user_id))
+            # Load wallets from the dedicated file
+            wallets = load_json(USER_WALLETS_FILE, {})
+            wallet = wallets.get(str(user_id))
             if not wallet or not wallet.get("address"):
                 await update.message.reply_text("ENTER_DENIED:NO_WALLET")
+                print(">>> Denied: No wallet")
                 return
 
             try:
@@ -720,6 +732,7 @@ async def handle_web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE
             except Exception:
                 balance = 0
 
+            # Mark as entered (in-memory or save to file if persistence is needed)
             PUB_USERS[str(user_id)] = {
                 "user_id": str(user_id),
                 "username": username,
@@ -732,129 +745,16 @@ async def handle_web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE
                 "balance": balance
             }
 
-            await context.bot.answer_web_app_query(
-                web_app_query_id=update.web_app_query.id,
-                result=InlineQueryResultArticle(
-                    id="enter_ok",
-                    title="Enter Pub",
-                    input_message_content=InputTextMessageContent(
-                        "ENTER_OK:" + json.dumps(payload)
-                    )
-                )
-            )
+            await update.message.reply_text("ENTER_OK:" + json.dumps(payload))
+            print(">>> ENTER_OK sent")
             return
-
-        # ======================================================
-        # GET FOOTBALL CARD STATE
-        # ======================================================
-        if action == "get_card_state":
-            from football_card import CARD_TEAMS, CARD_ENTRIES
-
-            web_state = {}
-            for team in CARD_TEAMS:
-                if team in CARD_ENTRIES:
-                    web_state[team] = f"@{CARD_ENTRIES[team].get('username')}"
-                else:
-                    web_state[team] = None
-
-            await update.message.reply_text(
-                "CARD_STATE:" + json.dumps(web_state)
-            )
-            return
-
-        # ======================================================
-        # PICK TEAM FROM WEB APP
-        # ======================================================
-        elif action == "pickteam_web":
-            team = data.get("team", "").strip()
-
-            # Must have entered the pub first
-            pub_user = PUB_USERS.get(str(user_id))
-            if not pub_user:
-                await update.message.reply_text("ENTER_REQUIRED")
-                return
-
-            username_from_pub = pub_user["username"]
-
-            if not team:
-                await update.message.reply_text("CLAIM_DENIED: Missing team.")
-                return
-
-            from football_card import CARD_ACTIVE, CARD_TEAMS, CARD_ENTRIES, pickteam_command
-
-            if not CARD_ACTIVE:
-                await update.message.reply_text("❌ No football card running.")
-                return
-
-            if team not in CARD_TEAMS:
-                await update.message.reply_text(f"❌ {team} not on the card.")
-                return
-
-            if team in CARD_ENTRIES:
-                taken_by = CARD_ENTRIES[team].get("username", "someone")
-                await update.message.reply_text(f"❌ {team} already taken by @{taken_by}.")
-                return
-
-            # Simulate /pickteam to reuse existing logic
-            simulated_update = Update(
-                update_id=update.update_id + 999999,
-                message=Message(
-                    message_id=update.message.message_id + 999999,
-                    date=update.message.date,
-                    chat=update.message.chat,
-                    from_user=User(
-                        id=user_id,
-                        is_bot=False,
-                        first_name=username_from_pub,
-                        username=username_from_pub,
-                        language_code="en"
-                    ),
-                    text=f"/pickteam {team}"
-                )
-            )
-
-            context.user_data["is_web_app"] = True
-
-            try:
-                await pickteam_command(simulated_update, context)
-
-                await update.message.reply_text("CLAIM_SUCCESS")
-
-                # Send updated state
-                state = {}
-                for t in CARD_TEAMS:
-                    if t in CARD_ENTRIES:
-                        state[t] = f"@{CARD_ENTRIES[t].get('username')}"
-                    else:
-                        state[t] = None
-
-                await update.message.reply_text(
-                    "CARD_STATE:" + json.dumps(state)
-                )
-
-            except Exception as e:
-                print(">>> pickteam_web error:", e)
-                await update.message.reply_text("CLAIM_DENIED: Payment or logic failed.")
-
-            return
-
-        # ======================================================
-        # LEGACY FALLBACK
-        # ======================================================
-        elif action == "claim_team":
-            forward = {
-                "action": "pickteam_web",
-                "team": data.get("team"),
-                "username": data.get("username"),
-            }
-            update.message.web_app_data.data = json.dumps(forward)
-            return await handle_web_app_data(update, context)
 
         # ======================================================
         # UNKNOWN ACTION
         # ======================================================
         else:
             await update.message.reply_text(f"Unknown action: {action}")
+            print(">>> Unknown action:", action)
 
     except Exception as e:
         print(">>> WEB APP CRASH:", e)
@@ -2522,6 +2422,9 @@ async def main():
 
     print(">>> 🤖 BOT STARTING - Testing web app data flow")
 
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, on_new_members))
+    app.add_handler(CallbackQueryHandler(captcha_callback, pattern=r"^captcha:"))
+
     # ------------------ handlers ------------------
     app.add_handler(CommandHandler("startquiz", start_quiz_backup))
     app.add_handler(CommandHandler("start", start_dm))
@@ -2534,13 +2437,10 @@ async def main():
     app.add_handler(CommandHandler("pubrumour", pub_rumour_command))
     app.add_handler(CommandHandler("pubclue", pub_clue_command))
 
-    app.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.ALL, handle_web_app_data), group=1)
 
         # AI chat — mentions or replies
     app.add_handler(CallbackQueryHandler(dm_buttons))
-    app.add_handler(CallbackQueryHandler(captcha_callback, pattern=r"^captcha:"))
 
-    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, on_new_members))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & (filters.Regex(r'@GrumpyGeorgeBot') | filters.REPLY), ai_chat))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE, message_router))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatType.GROUPS, link_and_spam_guard))
