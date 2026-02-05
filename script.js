@@ -38,17 +38,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // ENTER PUB BUTTON
   // ===============================
   enterBtn.addEventListener('click', () => {
+    alert("✅ Button clicked! Now sending request to bot...");
+
     const user = Telegram.WebApp.initDataUnsafe?.user;
     if (!user || !user.id) {
       alert("Telegram user data unavailable. Try reopening from Telegram.");
       return;
     }
-
-    console.log("Enter Pub clicked - sending request for user:", user.id);
-
-    // Visual feedback
-    enterBtn.textContent = "Checking wallet...";
-    enterBtn.disabled = true;
 
     Telegram.WebApp.sendData(JSON.stringify({
       action: "enter_pub",
