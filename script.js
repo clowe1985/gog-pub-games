@@ -44,12 +44,17 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    console.log("Enter Pub clicked - sending request for user:", user.id);
+
+    // Visual feedback
+    enterBtn.textContent = "Checking wallet...";
+    enterBtn.disabled = true;
+
     Telegram.WebApp.sendData(JSON.stringify({
       action: "enter_pub",
       userId: user.id,
       username: user.username || ""
     }));
-    console.log("Sent enter_pub request for user:", user.id);
   });
 
   // ===============================
@@ -162,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (event.data.startsWith("ENTER_OK:")) {
       window.PUB_USER = JSON.parse(event.data.replace("ENTER_OK:", ""));
-      console.log("Entry approved. Transitioning inside...");
+      console.log("✅ ENTER_OK received - transitioning inside");
       outside.style.opacity = '0';
       setTimeout(() => {
         outside.style.display = 'none';
@@ -175,8 +180,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (event.data.startsWith("ENTER_DENIED")) {
+      console.log("❌ ENTER_DENIED received:", event.data);
       alert("Entry denied: " + event.data.split(":")[1]);
-      console.log("Entry denied:", event.data);
+      // Reset button
+      enterBtn.textContent = "Enter the Pub";
+      enterBtn.disabled = false;
       return;
     }
 

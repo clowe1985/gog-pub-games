@@ -15,6 +15,7 @@ import urllib.parse
 import base64
 import tempfile
 import hashlib
+import app
 from time import time as now_ts
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
