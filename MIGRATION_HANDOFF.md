@@ -170,14 +170,14 @@ Fill this table in **git** before go-live so Grumpbot + GrumpyAdmin run the same
 
 | Field | Value |
 |-------|-------|
-| Planned UTC window | _YYYY-MM-DD HH:MM–HH:MM UTC_ |
-| Snapshot owner | _who briefly freezes writes on old server & exports final JSON / SQLite bundle_ |
-| Bundle destination | _e.g. rsync → `/opt/grumpy/data/json-imports/` on GrumpyAdmin_ |
-| Import runner | _dry-run then live `scripts/import_hot_state_to_postgres.py`, then `grumpyapi` restart_ |
-| DNS hostnames | _e.g. app domain + **every hostname the mini app calls for API** → GrumpyAdmin IP_ |
-| TLS | _`certbot` on GrumpyAdmin after DNS propagates; confirm API CORS allows app origin_ |
-| Smoke check | _e.g. low-value Telegram / wallet flow_ |
-| Rollback | _checklist §16 — old server stays runnable for agreed duration_ |
+| Planned UTC window | **ASAP / now** — execute once snapshot bundle is on GrumpyAdmin and both sides ACK live (no separate maintenance slot booked yet). Refine to a fixed UTC range here when you schedule one. |
+| Snapshot owner | **This coordination chat + operator on Grumpbot** — brief write freeze on old server; export final hot-state JSON + any critical file-backed/SQLite (`pub_predictions.db`, etc.) into one bundle. |
+| Bundle destination | **GrumpyAdmin:** **`grumpy@GrumpyAdmin:/opt/grumpy/data/json-imports/`** (rsync/scp path agreed at snapshot time). |
+| Import runner | **GrumpyAdmin operator:** dry-run then live **`scripts/import_hot_state_to_postgres.py`** from **`/opt/grumpy/apps/gog_bot`** with **`/opt/grumpy/env/gog_bot.env`** loaded → **`systemctl restart grumpyapi`** (or equivalent). |
+| DNS hostnames | Point **production traffic for the mini app + API path** at **GrumpyAdmin’s public IP**: **`app.officialgogcoin.com`** (mini app origin + **`https://app.officialgogcoin.com/api/webhook`** per `script.js`; API also reachable under **`/api/`** on that host via nginx → `127.0.0.1:5000`). **`officialgogcoin.com`** marketing site — confirm separately whether it moves or stays on current host. After DNS change, **`certbot`/HTTPS** on GrumpyAdmin vhost serving the app/API. API CORS already includes **`https://app.officialgogcoin.com`** (`api_server.py`). |
+| TLS | **`certbot` on GrumpyAdmin** after DNS propagates for **`app.officialgogcoin.com`** (and any other hostname nginx terminates for API/static). |
+| Smoke check | **You (repo owner / operator)** — manual sanity (e.g. low-value Telegram flow + mini-app wallet/game hit against **`https://app.officialgogcoin.com/api/...`** after TLS). |
+| Rollback | **§16:** keep **Grumpbot / old stack runnable for rollback for one calendar week after DNS flip** — adjust end date when flip happens (planning note: **~2026-05-08** if flip **2026-05-01**). |
 
 ---
 
@@ -191,3 +191,4 @@ Fill this table in **git** before go-live so Grumpbot + GrumpyAdmin run the same
 | 2026-05-01 | GrumpyAdmin: shallow-cloned **`origin/main`** for docs; installed **`MIGRATION_HANDOFF.md`** under **`/opt/grumpy/apps/gog_bot/`**. Git canonical updated: public remote **`https://github.com/clowe1985/gog-pub-games.git`**, branch **`main`**, repo-root vs deploy-dir note, doc-only **`git clone --depth 1`** + **`install`** recipe; **`NEW_SERVER_MIGRATION_CHECKLIST.md`** committed to **`main`** for same sync path. |
 | 2026-05-01 | **`main`** pushed to **`55100d48`**; **`NEW_SERVER_MIGRATION_CHECKLIST.md`** on GitHub (raw **200**). GrumpyAdmin: **`sudo /opt/grumpy/scripts/sync_gog_pub_docs.sh`** — standard doc sync from **`origin/main`**; **`MIGRATION_HANDOFF.md`** + checklist under **`/opt/grumpy/apps/gog_bot/`** match **`main`**. |
 | 2026-05-01 | Added **Cutover window** table template (snapshot → json-imports → import/restart → DNS/TLS → smoke → rollback) so cutover runs against **git** without side threads. |
+| 2026-05-01 | **Cutover window filled:** ASAP path; snapshot owner = coordination chat + Grumpbot operator; bundle → **`/opt/grumpy/data/json-imports/`**; import on GrumpyAdmin; DNS **`app.officialgogcoin.com`** (+ confirm **`officialgogcoin.com`**); TLS certbot on GrumpyAdmin; smoke = repo owner; rollback = 1 week post-DNS (see table). |
