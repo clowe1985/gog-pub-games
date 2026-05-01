@@ -45,6 +45,8 @@ rm -rf "$tmpdir"
 
 Skip the second **`install`** until **`NEW_SERVER_MIGRATION_CHECKLIST.md`** exists on **`main`**.
 
+**GrumpyAdmin:** **`sudo /opt/grumpy/scripts/sync_gog_pub_docs.sh`** — normal doc sync after **`origin/main`** advances (same outcome as Option B).
+
 ### Option C — full deploy as a real clone later
 
 Replace `/opt/grumpy/apps/gog_bot` contents with **`git clone`** (or **`git pull`** in place) when ready; document exact workflow here when adopted.
@@ -170,3 +172,4 @@ Before migration-related work on either host: **read this file**. When something
 | 2026-05-01 | Merged GrumpyAdmin snapshot: canonical paths note; checklist pointer (git vs `/root/` copy); nginx (`grumpygeorge`, `/api/` → `127.0.0.1:5000`, HTTP until DNS/SSL); systemd `grumpyapi.service`; George bot not on GrumpyAdmin by plan. |
 | 2026-05-01 | GrumpyAdmin deploy note: `/opt/grumpy/apps/gog_bot` may have **no `.git`** — sync via **rsync** from repo (or adopt git clone later). Added checklist copy under app dir on server for layout parity. Nginx stanza detail: `/etc/nginx/sites-available/grumpygeorge`. Git handoff merge pending rsync until clone adopted. |
 | 2026-05-01 | GrumpyAdmin: shallow-cloned **`origin/main`** for docs; installed **`MIGRATION_HANDOFF.md`** under **`/opt/grumpy/apps/gog_bot/`**. Git canonical updated: public remote **`https://github.com/clowe1985/gog-pub-games.git`**, branch **`main`**, repo-root vs deploy-dir note, doc-only **`git clone --depth 1`** + **`install`** recipe; **`NEW_SERVER_MIGRATION_CHECKLIST.md`** committed to **`main`** for same sync path. |
+| 2026-05-01 | **`main`** pushed to **`55100d48`**; **`NEW_SERVER_MIGRATION_CHECKLIST.md`** on GitHub (raw **200**). GrumpyAdmin: **`sudo /opt/grumpy/scripts/sync_gog_pub_docs.sh`** — standard doc sync from **`origin/main`**; **`MIGRATION_HANDOFF.md`** + checklist under **`/opt/grumpy/apps/gog_bot/`** match **`main`**. |
