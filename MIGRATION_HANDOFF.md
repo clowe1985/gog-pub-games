@@ -2,7 +2,7 @@
 
 **Why this file exists:** Cursor chats and operators do not share memory. Use this document as the single place to record **current migration decisions and server-specific facts**. Read it before doing migration work; update it when reality changes (paths, imports, gates).
 
-**Canonical copy:** Track this file in **git** under `gog_bot/MIGRATION_HANDOFF.md`. On GrumpyAdmin the deployed path is **`/opt/grumpy/apps/gog_bot/MIGRATION_HANDOFF.md`** (expect ownership **`grumpy:grumpy`**). If server and git disagree, merge into **one** doc and reconcile the changelog below—do not maintain divergent copies long term.
+**Canonical copy:** Track this file in **git** at the **repository root**: **`MIGRATION_HANDOFF.md`** (same relative path as on disk under **`/opt/grumpy/apps/gog_bot/`**). On GrumpyAdmin the deployed path is **`/opt/grumpy/apps/gog_bot/MIGRATION_HANDOFF.md`** (expect ownership **`grumpy:grumpy`**). If server and git disagree, merge into **one** doc and reconcile the changelog below—do not maintain divergent copies long term.
 
 **Full procedure:** Long-form checklist in git: [NEW_SERVER_MIGRATION_CHECKLIST.md](./NEW_SERVER_MIGRATION_CHECKLIST.md). **`/root/NEW_SERVER_MIGRATION_CHECKLIST.md`** on a server is an **optional mirror** only—prefer editing the git-tracked checklist. On GrumpyAdmin a copy may also live next to the app as **`/opt/grumpy/apps/gog_bot/NEW_SERVER_MIGRATION_CHECKLIST.md`** so paths align with repo layout (sync from git when it changes).
 
@@ -10,9 +10,44 @@
 
 ## Deploy / sync (GrumpyAdmin)
 
-**`/opt/grumpy/apps/gog_bot/` is not required to be a git checkout.** Today it may be populated only via **rsync/scp from a machine that has the repo** (no `.git` on server → no `git pull` until someone clones into that path or replaces deploy with git-based checkout).
+**Public Git remote:** **`https://github.com/clowe1985/gog-pub-games.git`** — track **`main`** unless this doc says otherwise.
 
-After edits land in git: **`rsync`** at least `gog_bot/MIGRATION_HANDOFF.md` and `gog_bot/NEW_SERVER_MIGRATION_CHECKLIST.md` (plus code as usual) to **`grumpy@GrumpyAdmin:/opt/grumpy/apps/gog_bot/`**. Alternatively, adopt a **real clone** at `/opt/grumpy/apps/gog_bot` and document remote + branch here when that happens.
+**Repo root vs deployed tree:** A clone’s **repository root** (what you see after `git clone`) matches the **`gog_bot`** application directory layout: files like **`MIGRATION_HANDOFF.md`** live at the **root of the repo**, which should mirror **`/opt/grumpy/apps/gog_bot/`** on the server (not nested under an extra `gog_bot/` folder).
+
+**`/opt/grumpy/apps/gog_bot/` is not required to be a full git checkout.** It may be populated via **rsync/scp**, **archive extract**, or **selective copy** from a machine that has the repo.
+
+### Option A — rsync from your laptop / Grumpbot (has repo)
+
+After commits land on **`origin/main`**, sync docs (and code as needed):
+
+```bash
+rsync -av ./MIGRATION_HANDOFF.md ./NEW_SERVER_MIGRATION_CHECKLIST.md \
+  grumpy@GrumpyAdmin:/opt/grumpy/apps/gog_bot/
+```
+
+(Adjust source paths if your local clone layout differs.)
+
+### Option B — doc-only shallow clone + copy (no `.git` under `/opt/grumpy/apps/gog_bot`)
+
+Useful when operators only need fresh **`MIGRATION_HANDOFF.md`** / checklist from GitHub:
+
+```bash
+tmpdir="$(mktemp -d)"
+git clone --depth 1 --branch main https://github.com/clowe1985/gog-pub-games.git "$tmpdir/gog-pub-games"
+sudo install -o grumpy -g grumpy -m 0644 \
+  "$tmpdir/gog-pub-games/MIGRATION_HANDOFF.md" \
+  /opt/grumpy/apps/gog_bot/MIGRATION_HANDOFF.md
+sudo install -o grumpy -g grumpy -m 0644 \
+  "$tmpdir/gog-pub-games/NEW_SERVER_MIGRATION_CHECKLIST.md" \
+  /opt/grumpy/apps/gog_bot/NEW_SERVER_MIGRATION_CHECKLIST.md
+rm -rf "$tmpdir"
+```
+
+Skip the second **`install`** until **`NEW_SERVER_MIGRATION_CHECKLIST.md`** exists on **`main`**.
+
+### Option C — full deploy as a real clone later
+
+Replace `/opt/grumpy/apps/gog_bot` contents with **`git clone`** (or **`git pull`** in place) when ready; document exact workflow here when adopted.
 
 ---
 
@@ -134,3 +169,4 @@ Before migration-related work on either host: **read this file**. When something
 | 2026-05-01 | Initial git handoff: layout, import map, path-fix note, beer_fund import, housekeeping. |
 | 2026-05-01 | Merged GrumpyAdmin snapshot: canonical paths note; checklist pointer (git vs `/root/` copy); nginx (`grumpygeorge`, `/api/` → `127.0.0.1:5000`, HTTP until DNS/SSL); systemd `grumpyapi.service`; George bot not on GrumpyAdmin by plan. |
 | 2026-05-01 | GrumpyAdmin deploy note: `/opt/grumpy/apps/gog_bot` may have **no `.git`** — sync via **rsync** from repo (or adopt git clone later). Added checklist copy under app dir on server for layout parity. Nginx stanza detail: `/etc/nginx/sites-available/grumpygeorge`. Git handoff merge pending rsync until clone adopted. |
+| 2026-05-01 | GrumpyAdmin: shallow-cloned **`origin/main`** for docs; installed **`MIGRATION_HANDOFF.md`** under **`/opt/grumpy/apps/gog_bot/`**. Git canonical updated: public remote **`https://github.com/clowe1985/gog-pub-games.git`**, branch **`main`**, repo-root vs deploy-dir note, doc-only **`git clone --depth 1`** + **`install`** recipe; **`NEW_SERVER_MIGRATION_CHECKLIST.md`** committed to **`main`** for same sync path. |
