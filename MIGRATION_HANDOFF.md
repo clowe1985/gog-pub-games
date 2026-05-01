@@ -164,6 +164,23 @@ Before migration-related work on either host: **read this file**. When something
 
 ---
 
+## Cutover window (plan before DNS / traffic flip)
+
+Fill this table in **git** before go-live so Grumpbot + GrumpyAdmin run the same window without relying on side chats. Commit + push **`main`**; GrumpyAdmin runs **`sync_gog_pub_docs.sh`** after **`origin/main`** moves.
+
+| Field | Value |
+|-------|-------|
+| Planned UTC window | _YYYY-MM-DD HH:MM–HH:MM UTC_ |
+| Snapshot owner | _who briefly freezes writes on old server & exports final JSON / SQLite bundle_ |
+| Bundle destination | _e.g. rsync → `/opt/grumpy/data/json-imports/` on GrumpyAdmin_ |
+| Import runner | _dry-run then live `scripts/import_hot_state_to_postgres.py`, then `grumpyapi` restart_ |
+| DNS hostnames | _e.g. app domain + **every hostname the mini app calls for API** → GrumpyAdmin IP_ |
+| TLS | _`certbot` on GrumpyAdmin after DNS propagates; confirm API CORS allows app origin_ |
+| Smoke check | _e.g. low-value Telegram / wallet flow_ |
+| Rollback | _checklist §16 — old server stays runnable for agreed duration_ |
+
+---
+
 ## Changelog (edit when you change something)
 
 | Date | Change |
@@ -173,3 +190,4 @@ Before migration-related work on either host: **read this file**. When something
 | 2026-05-01 | GrumpyAdmin deploy note: `/opt/grumpy/apps/gog_bot` may have **no `.git`** — sync via **rsync** from repo (or adopt git clone later). Added checklist copy under app dir on server for layout parity. Nginx stanza detail: `/etc/nginx/sites-available/grumpygeorge`. Git handoff merge pending rsync until clone adopted. |
 | 2026-05-01 | GrumpyAdmin: shallow-cloned **`origin/main`** for docs; installed **`MIGRATION_HANDOFF.md`** under **`/opt/grumpy/apps/gog_bot/`**. Git canonical updated: public remote **`https://github.com/clowe1985/gog-pub-games.git`**, branch **`main`**, repo-root vs deploy-dir note, doc-only **`git clone --depth 1`** + **`install`** recipe; **`NEW_SERVER_MIGRATION_CHECKLIST.md`** committed to **`main`** for same sync path. |
 | 2026-05-01 | **`main`** pushed to **`55100d48`**; **`NEW_SERVER_MIGRATION_CHECKLIST.md`** on GitHub (raw **200**). GrumpyAdmin: **`sudo /opt/grumpy/scripts/sync_gog_pub_docs.sh`** — standard doc sync from **`origin/main`**; **`MIGRATION_HANDOFF.md`** + checklist under **`/opt/grumpy/apps/gog_bot/`** match **`main`**. |
+| 2026-05-01 | Added **Cutover window** table template (snapshot → json-imports → import/restart → DNS/TLS → smoke → rollback) so cutover runs against **git** without side threads. |
