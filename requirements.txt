@@ -1,1 +1,7 @@
 flask
+httpx
+python-telegram-bot[job-queue]
+elevenlabs
+python-dotenv
+cryptography
+web3
