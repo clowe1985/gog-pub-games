@@ -1,6 +1,6 @@
 {
   "name": "GOG Pub Games",
-  "install": "python3 -m venv venv && ./venv/bin/pip install --upgrade pip -q && ./venv/bin/pip install -r requirements.txt && cd grumpy-token && npm install",
+  "install": "sudo apt-get update && sudo apt-get install -y python3-venv && python3 -m venv venv && ./venv/bin/pip install --upgrade pip -q && ./venv/bin/pip install -r requirements.txt && cd grumpy-token && npm install",
   "terminals": [
     {
       "name": "web",
