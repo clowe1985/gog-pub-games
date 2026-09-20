@@ -8,7 +8,7 @@ module.exports = {
   networks: {
     shidoTestnet: {
       url: "https://rpc-testnet-nodes.shidoscan.com",
-      accounts: [process.env.PRIVATE_KEY],
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 9007,
     },
   },
